@@ -106,6 +106,7 @@ async def implement_document(comic: hitomiv2.Comic, tags: list[document_sql.Tag]
 router = APIRouter(tags=["Hitomi"])
 document_router = APIRouter(tags=['Documents', 'API', 'Hitomi'])
 tag_router = APIRouter(tags=['Tags', 'API', 'Hitomi'])
+site_router = APIRouter(tags=['Site', 'APT', 'Hitomi'])
 
 
 # noinspection PyUnusedLocal
@@ -223,5 +224,14 @@ async def get_missing_tags(source_document_id: str,
     return tags
 
 
+@site_router.get('/download_urls')
+async def get_download_urls(hitomi_id: int) -> dict[str, str]:
+    comic = await hitomiv2.getComic(str(hitomi_id))
+    if not comic:
+        raise HTTPException(status_code=404, detail=f'comic {hitomi_id} not found')
+    return await hitomiv2.decodeDownloadUrls(comic.files)
+
+
 router.include_router(tag_router, prefix='/api/tags/hitomi')
 router.include_router(document_router, prefix='/api/documents/hitomi')
+router.include_router(site_router, prefix='/api/site/hitomi')
