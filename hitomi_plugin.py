@@ -106,7 +106,7 @@ async def implement_document(comic: hitomiv2.Comic, tags: list[document_sql.Tag]
 router = APIRouter(tags=["Hitomi"])
 document_router = APIRouter(tags=['Documents', 'API', 'Hitomi'])
 tag_router = APIRouter(tags=['Tags', 'API', 'Hitomi'])
-site_router = APIRouter(tags=['Site', 'APT', 'Hitomi'])
+site_router = APIRouter(tags=['Site', 'API', 'Hitomi'])
 
 
 # noinspection PyUnusedLocal
