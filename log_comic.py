@@ -26,7 +26,7 @@ def extract_hitomi_id(hitomi_url: str) -> Optional[str]:
     return None
 
 
-class GenericTag:
+class HitomiGenericTag:
     def __init__(self, tag: Tag | Parody | Character) -> None:
         self.tag = tag
         self.group_id: Optional[int] = None
@@ -83,19 +83,19 @@ class GenericTag:
         return hash(self.hitomi_name)
 
     def __eq__(self, other: Self):
-        if not isinstance(other, GenericTag):
+        if not isinstance(other, HitomiGenericTag):
             raise TypeError(f'不支持的比较')
         return self.hitomi_name == other.hitomi_name
 
 
-def extract_generic_tags(comic: Comic) -> set[GenericTag]:
+def extract_generic_tags(comic: Comic) -> set[HitomiGenericTag]:
     result = set()
     for parody in comic.parodys:
-        result.add(GenericTag(parody))
+        result.add(HitomiGenericTag(parody))
     for character in comic.characters:
-        result.add(GenericTag(character))
+        result.add(HitomiGenericTag(character))
     for tag in comic.tags:
-        result.add(GenericTag(tag))
+        result.add(HitomiGenericTag(tag))
     return result
 
 

@@ -20,3 +20,4 @@ aiofiles
 jinja2
 aioconsole
 pyyaml
+nhentai
