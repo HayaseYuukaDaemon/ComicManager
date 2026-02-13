@@ -26,13 +26,33 @@ def extract_hitomi_id(hitomi_url: str) -> Optional[str]:
     return None
 
 
-class HitomiGenericTag:
-    def __init__(self, tag: Tag | Parody | Character) -> None:
-        self.tag = tag
+class GenericTag[T]:
+    def __init__(self, tag: T) -> None:
+        self.tag: T = tag
         self.group_id: Optional[int] = None
         self.name: Optional[str] = None
-        self.hitomi_name: Optional[str] = None
         self.db_id: Optional[int] = None
+
+    def query_db(self, db: document_db.DocumentDB) -> Optional[document_sql.Tag]:
+        raise NotImplementedError
+
+    def add_db(self, db: document_db.DocumentDB) -> document_sql.Tag:
+        raise NotImplementedError
+
+    def __str__(self):
+        raise NotImplementedError
+
+    def __hash__(self):
+        raise NotImplementedError
+
+    def __eq__(self, other: Self):
+        raise NotImplementedError
+
+
+class HitomiGenericTag(GenericTag):
+    def __init__(self, tag: Tag | Parody | Character) -> None:
+        super().__init__(tag)
+        self.hitomi_name = None
         if isinstance(tag, Tag):
             self.hitomi_name = tag.tag
             return

@@ -4,6 +4,7 @@ from site_utils import Authoricator
 import document_db
 from pydantic import BaseModel
 from nhentai.parser import doujinshi_parser
+from log_comic import GenericTag
 
 logger, setLoggerLevel, _ = getLogger('NHentaiPlugin')
 
@@ -11,6 +12,12 @@ router = APIRouter(tags=["NHentai"])
 document_router = APIRouter(tags=['Documents', 'API', 'NHentai'])
 tag_router = APIRouter(tags=['Tags', 'API', 'NHentai'])
 site_router = APIRouter(tags=['Site', 'API', 'NHentai'])
+
+
+class NhentaiTag(GenericTag):
+    def __init__(self, tag: str, type_name: str):
+        super().__init__((type_name, tag))
+
 
 
 class MissingTag(BaseModel):
