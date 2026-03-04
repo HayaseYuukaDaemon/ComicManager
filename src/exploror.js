@@ -416,19 +416,19 @@ window.addEventListener('popstate', function(e) {
     // 解析当前 URL 参数并重新发起搜索，此时参数传 false 避免重复 pushState
     /** @type {SearchArgs} */
     let query_args = e.state;
-    console.log(`已拦截pop事件, 获取参数: ${JSON.stringify(query_args)}`)
-    if (query_args === null) {
-        searchDocuments(buildSearchArgs(1));
-    } else {
-        searchDocuments(query_args);
-    }
+    console.log(`已拦截pop事件, 获取参数: ${JSON.stringify(query_args)}`);
+
+    if (query_args === null)
+        query_args = buildSearchArgs(1);
+    searchDocuments(query_args, false);
 });
 
 
 /**
  * @param {?SearchArgs} search_object
+ * @param {?boolean} push_to_history
  */
-function searchDocuments(search_object) {
+function searchDocuments(search_object, push_to_history = true) {
     let search_params;
     if(search_object === null)
         search_object = buildSearchArgs(1);
@@ -437,7 +437,8 @@ function searchDocuments(search_object) {
     let query_url_params = search_params.toString();
     console.log('查询参数: ' + search_params.toString());
     // window.location.search = search_params.toString();
-    window.history.pushState(search_object, '', window.location.pathname + (query_url_params ? '?' + query_url_params : ''));
+    if (push_to_history)
+        window.history.pushState(search_object, '', window.location.pathname + (query_url_params ? '?' + query_url_params : ''));
 
     fetch(`/api/documents/?${query_url_params}`).then(async response => {
         console.log('搜索成功返回');
