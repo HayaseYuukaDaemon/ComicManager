@@ -23,15 +23,6 @@ fetch('/api/tags').then(async response => {
         DROPDOWN_SELECTOR.appendChild(new_option);
     }
     DROPDOWN_INPUT.placeholder = 'Tag组更新完成, 等待选择tag组';
-    let URL_SEARCH_PARAMS = new URLSearchParams(window.location.search);
-    console.log('查询参数: ' + URL_SEARCH_PARAMS.toString());
-    let query_url_params = URL_SEARCH_PARAMS.toString();
-    fetch(`/api/documents/?${query_url_params}`).then(async response => {
-        console.log('初始化搜索 成功返回');
-        unpackSearchResponse(await response.json());
-        fillSearchArgs(URL_SEARCH_PARAMS);
-    })
-
 }, reason => {
     DROPDOWN_INPUT.placeholder = 'Tag组更新失败, 禁用一切';
     throw new Error(reason);
@@ -86,12 +77,12 @@ function filterList() {
 
 function submitAuthorSearch(event) {
     const author_name = event.target.textContent;
-    searchDocuments(parseSearchArgs({author_name: author_name, page: 1, target_tag: 0}));
+    searchDocuments({author_name: author_name, page: 1, target_tag: 0});
 }
 
 function submitTagSearch(event){
     const tag_id = parseInt(event.target.getAttribute('tag-id'), 10);
-    searchDocuments(parseSearchArgs({target_tag: tag_id, page: 1, author_name: ''}))
+    searchDocuments({target_tag: tag_id, page: 1, author_name: ''});
 }
 
 for (let i = 0; i < TITLE_ITEMS.length; i++) {
@@ -139,7 +130,7 @@ function switchPage(event) {
     } else {
         alert('不是翻页按钮，无法应用功能');
     }
-    searchDocuments(parseSearchArgs(constructSearchArgs(target_page)));
+    searchDocuments(buildSearchArgs(target_page));
 }
 
 
@@ -151,7 +142,7 @@ function switchPage(event) {
  * @param {number} target_page
  * @return SearchArgs
  */
-function constructSearchArgs(target_page) {
+function buildSearchArgs(target_page) {
     if (target_page === null)target_page = 1
     let search_args = {target_tag: 0, author_name: '', page: target_page};
     const tag_name = document.getElementById('dropdown-input').value;
@@ -221,7 +212,7 @@ function requestDeleteDocument(document_id) {
             // 3. 刷新当前页面列表
             const now_page_element = document.getElementById('now-page');
             const now_page = parseInt(now_page_element ? now_page_element.textContent : '1', 10);
-            searchDocuments(parseSearchArgs(constructSearchArgs(now_page)));
+            searchDocuments(buildSearchArgs(now_page));
         } else {
             // 处理非 2xx 响应 (对应 jQuery 的 error 回调)
             let errorMsg = "删除失败";
@@ -401,7 +392,9 @@ function unpackSearchResponse(response){
     let document_count = response.total_count;
     const total_page_item = document.getElementById('total-page');
     total_page_item.textContent = Math.ceil(document_count / 10).toString();
-    console.log('开始构造文档列表')
+    console.log('清空文档容器');
+    DOCUMENTS_CONTAINER.innerHTML = '';
+    console.log('开始构造文档列表');
     response.results.forEach(document_id => {
         let document_item = document.createElement('div');
         document_item.setAttribute('hx-get', `/api/documents/${document_id}`);
@@ -418,13 +411,37 @@ function unpackSearchResponse(response){
 }
 
 
-/**
- * @param {?URLSearchParams} search_params
- */
-function searchDocuments(search_params) {
-    if(search_params === null)
-        search_params = parseSearchArgs(constructSearchArgs(1));
+window.addEventListener('popstate', function(e) {
+    // 触发 popstate 时，浏览器的 URL 地址栏已经发生变化
+    // 解析当前 URL 参数并重新发起搜索，此时参数传 false 避免重复 pushState
+    /** @type {SearchArgs} */
+    let query_args = e.state;
+    console.log(`已拦截pop事件, 获取参数: ${JSON.stringify(query_args)}`)
+    if (query_args === null) {
+        searchDocuments(buildSearchArgs(1));
+    } else {
+        searchDocuments(query_args);
+    }
+});
 
+
+/**
+ * @param {?SearchArgs} search_object
+ */
+function searchDocuments(search_object) {
+    let search_params;
+    if(search_object === null)
+        search_object = buildSearchArgs(1);
+    search_params = parseSearchArgs(search_object);
+
+    let query_url_params = search_params.toString();
     console.log('查询参数: ' + search_params.toString());
-    window.location.search = search_params.toString();
+    // window.location.search = search_params.toString();
+    window.history.pushState(search_object, '', window.location.pathname + (query_url_params ? '?' + query_url_params : ''));
+
+    fetch(`/api/documents/?${query_url_params}`).then(async response => {
+        console.log('搜索成功返回');
+        unpackSearchResponse(await response.json());
+        fillSearchArgs(search_params);
+    })
 }
