@@ -88,15 +88,15 @@ async def implement_document(comic: hitomiv2.Comic, tags: list[document_sql.Tag]
     if final_path.exists():
         task_status[comic.title] = TaskStatus(percent=0, message='最终文件已存在, 请求人工接管')
         return
-    with document_db.DocumentDB() as db:
-        comic_id = db.add_document(comic.title, final_path, authors=comic_authors_list, check_file=False)
+    async with document_db.DocumentDB() as db:
+        comic_id = await db.add_document(comic.title, final_path, authors=comic_authors_list, check_file=False)
         if not comic_id or comic_id < 0:
             task_status[comic.title] = TaskStatus(percent=0, message=f'无法添加本子: {comic_id}')
             raw_comic_path.unlink()
             return
         for tag in tags:
-            db.link_document_tag(comic_id, tag)
-        link_result = db.link_document_source(comic_id, 1, str(comic.id))
+            await db.link_document_tag(comic_id, tag)
+        link_result = await db.link_document_source(comic_id, 1, str(comic.id))
         if not link_result:
             task_status[comic.title] = TaskStatus(percent=0, message='hitomi链接失败, 请求人工接管')
             return
@@ -146,7 +146,7 @@ async def search_comic(search_str: str) -> list[hitomiv2.Comic]:
                      name='document.get.hitomi',
                      dependencies=[Depends(Authoricator())])
 async def get_comic(hitomi_id: int, db: document_db.DocumentDB = Depends(get_db)) -> document_sql.DocumentMetadata:
-    document = db.search_by_source(str(hitomi_id), 1)
+    document = await db.search_by_source(str(hitomi_id), 1)
     if document is None:
         raise HTTPException(status_code=404)
     return document_sql.DocumentMetadata(document_info=document,
@@ -166,14 +166,14 @@ async def add_comic_post(request: AddComicRequest,
         hitomi_result = await hitomiv2.getComic(request.source_document_id)
     except Exception as e:
         return AddComicResponse(message=str(e))
-    db_result = db.search_by_source(source_document_id=request.source_document_id)
+    db_result = await db.search_by_source(source_document_id=request.source_document_id)
     if db_result:
         task_status.pop(hitomi_result.title, None)
         return AddComicResponse(redirect_url=f'/show_document/{db_result.document_id}')
     raw_document_tags = log_comic.extract_generic_tags(hitomi_result)
     document_tags = []
     for tag in raw_document_tags:
-        db_result = tag.query_db(db)
+        db_result = await tag.query_db(db)
         if db_result:
             document_tags.append(db_result)
             continue
@@ -188,7 +188,7 @@ async def add_comic_post(request: AddComicRequest,
             return AddComicResponse(message=f'tag {tag.hitomi_name} name not found')
         tag.name = tag_info_by_req[1]
         try:
-            db_result = tag.add_db(db)
+            db_result = await tag.add_db(db)
         except Exception as e:
             return AddComicResponse(message=f'tag {tag.hitomi_name} db add failed: {str(e)}')
         document_tags.append(db_result)
@@ -206,7 +206,7 @@ class MissingTag(BaseModel):
                 name='tags.get.hitomi.missing_tags')
 async def get_missing_tags(source_document_id: str,
                            db: document_db.DocumentDB = Depends(get_db)) -> list[MissingTag]:
-    db_result = db.search_by_source(source_document_id=source_document_id)
+    db_result = await db.search_by_source(source_document_id=source_document_id)
     if db_result:
         return []
     try:
@@ -218,7 +218,7 @@ async def get_missing_tags(source_document_id: str,
     plain_tags = log_comic.extract_generic_tags(hitomi_result)
     tags: list[MissingTag] = []
     for tag in plain_tags:
-        if tag.query_db(db):
+        if await tag.query_db(db):
             continue
         tags.append(MissingTag(name=tag.hitomi_name, group_id=tag.group_id))
     return tags

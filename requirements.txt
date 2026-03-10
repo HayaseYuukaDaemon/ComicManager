@@ -1,4 +1,5 @@
 sqlalchemy
+aiosqlite
 requests
 colorlog
 natsort

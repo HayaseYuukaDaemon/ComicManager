@@ -33,10 +33,10 @@ class GenericTag[T]:
         self.name: Optional[str] = None
         self.db_id: Optional[int] = None
 
-    def query_db(self, db: document_db.DocumentDB) -> Optional[document_sql.Tag]:
+    async def query_db(self, db: document_db.DocumentDB) -> Optional[document_sql.Tag]:
         raise NotImplementedError
 
-    def add_db(self, db: document_db.DocumentDB) -> document_sql.Tag:
+    async def add_db(self, db: document_db.DocumentDB) -> document_sql.Tag:
         raise NotImplementedError
 
     def __str__(self):
@@ -66,8 +66,8 @@ class HitomiGenericTag(GenericTag):
             return
         raise TypeError(f'tag must be Tag or Parody or Character')
 
-    def query_db(self, db: document_db.DocumentDB) -> Optional[document_sql.Tag]:
-        tag_info = db.get_tag_by_hitomi(self.hitomi_name)
+    async def query_db(self, db: document_db.DocumentDB) -> Optional[document_sql.Tag]:
+        tag_info = await db.get_tag_by_hitomi(self.hitomi_name)
         if tag_info is None:
             return None
         self.name = tag_info.name
@@ -75,15 +75,15 @@ class HitomiGenericTag(GenericTag):
         self.db_id = tag_info.tag_id
         return tag_info
 
-    def add_db(self, db: document_db.DocumentDB) -> document_sql.Tag:
-        db_result = self.query_db(db)
+    async def add_db(self, db: document_db.DocumentDB) -> document_sql.Tag:
+        db_result = await self.query_db(db)
         if db_result:
             return db_result
         if self.name is None:
             raise ValueError(f'未设置数据库名称')
         if self.group_id is None:
             raise ValueError(f'未分配组id')
-        return db.add_tag(document_sql.Tag(name=self.name, group_id=self.group_id, hitomi_alter=self.hitomi_name))
+        return await db.add_tag(document_sql.Tag(name=self.name, group_id=self.group_id, hitomi_alter=self.hitomi_name))
 
     def __str__(self):
         if self.group_id == 1:
@@ -134,11 +134,11 @@ async def robust_input(prompt: str, validate_type: int) -> int | str:
 
 async def implement_tags(comic: Comic, db: document_db.DocumentDB) -> list[document_sql.Tag]:
     raw_comic_tags = extract_generic_tags(comic)
-    for tag_group in db.get_tag_groups():
+    for tag_group in await db.get_tag_groups():
         print(f'{tag_group.tag_group_id}:{tag_group.group_name}')
     comic_tags: list[document_sql.Tag] = []
     for tag in raw_comic_tags:
-        db_result = tag.query_db(db)
+        db_result = await tag.query_db(db)
         if db_result:
             comic_tags.append(db_result)
             continue
@@ -146,12 +146,12 @@ async def implement_tags(comic: Comic, db: document_db.DocumentDB) -> list[docum
         if tag.group_id is None:
             tag.group_id = await robust_input('输入tag组: ', 1)
         tag.name = await robust_input('输入tag名: ', 0)
-        comic_tags.append(tag.add_db(db))
+        comic_tags.append(await tag.add_db(db))
     return comic_tags
 
 
 async def log_comic(db: document_db.DocumentDB, hitomi_id: int):
-    if db.search_by_source(str(hitomi_id)):
+    if await db.search_by_source(str(hitomi_id)):
         print('已存在')
         return
     comic = await getComic(hitomi_id)
@@ -188,18 +188,18 @@ async def log_comic(db: document_db.DocumentDB, hitomi_id: int):
     if final_path.exists():
         raise FileExistsError(f'文件 {final_path} 已存在')
 
-    comic_id = db.add_document(comic.title, final_path, authors=comic_authors_list, check_file=False)
+    comic_id = await db.add_document(comic.title, final_path, authors=comic_authors_list, check_file=False)
     if not comic_id or comic_id < 0:
         print(f'无法添加本子: {comic_id}')
         raw_comic_path.unlink()
         return
     print('开始链接tags')
     for tag in comic_tags:
-        link_result = db.link_document_tag(comic_id, tag)
+        link_result = await db.link_document_tag(comic_id, tag)
         if not link_result:
             print(f'tag {tag}链接失败，错误id: {link_result}')
     print('开始链接源')
-    link_result = db.link_document_source(comic_id, 1, str(hitomi_id))
+    link_result = await db.link_document_source(comic_id, 1, str(hitomi_id))
     if link_result:
         print(f'成功将本子与源ID{hitomi_id}链接')
     else:
@@ -209,8 +209,9 @@ async def log_comic(db: document_db.DocumentDB, hitomi_id: int):
     shutil.move(raw_comic_path, final_path)
 
 
-if __name__ == '__main__':
-    asyncio.run(hitomiv2.refreshVersion())
+async def main_cli():
+    """CLI 入口点"""
+    await hitomiv2.refreshVersion()
     id_iter = None
     task_list = []
     raw_file_list = os.listdir(RAW_PATH)
@@ -242,6 +243,10 @@ if __name__ == '__main__':
                 print('输入错误')
                 continue
             hitomi_id_g = extract_result
-        with document_db.DocumentDB() as db_g:
-            asyncio.run(log_comic(db_g, hitomi_id_g))
+        async with document_db.DocumentDB() as db_g:
+            await log_comic(db_g, hitomi_id_g)
     print('录入完成')
+
+
+if __name__ == '__main__':
+    asyncio.run(main_cli())

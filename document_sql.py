@@ -166,3 +166,46 @@ class DocumentMetadata(BaseModel):
     document_tags: list[Tag]
     document_pages: list[str] | None = None
 
+
+class TagStats(BaseModel):
+    tag_id: int
+    name: str
+    group_name: str
+    document_count: int
+
+
+class AuthorStats(BaseModel):
+    author_id: int
+    name: str
+    document_count: int
+
+
+class SiteStatistics(BaseModel):
+    total_documents: int
+    total_authors: int
+    total_tags: int
+    top_tags: list[TagStats]
+    top_authors: list[AuthorStats]
+    recent_documents: list[Document]
+
+
+class TagCoOccurrence(BaseModel):
+    tag_a_id: int
+    tag_a_name: str
+    tag_b_id: int
+    tag_b_name: str
+    co_count: int
+
+
+class AuthorTagCoOccurrence(BaseModel):
+    author_id: int
+    author_name: str
+    tag_id: int
+    tag_name: str
+    co_count: int
+
+
+class CoOccurrenceResult(BaseModel):
+    tag_co_occurrences: list[TagCoOccurrence]
+    author_tag_co_occurrences: list[AuthorTagCoOccurrence]
+
