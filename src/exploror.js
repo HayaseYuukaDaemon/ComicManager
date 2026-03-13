@@ -169,6 +169,7 @@ function fillSearchArgs(search_params){
     NOW_PAGE_H2.textContent = search_params.get('page') ? search_params.get('page') : '1';
     if(author_name)
         DOCUMENT_INPUT.value = author_name;
+    else DOCUMENT_INPUT.value = '';
     if(parseInt(target_tag, 10)){
         fetch(`/api/tags/${target_tag}`).then(async response => {
             if (!response.ok){
@@ -183,7 +184,7 @@ function fillSearchArgs(search_params){
         }).catch(reason => {
             alert(`无法获取到目标tag,${reason}`);
         })
-    }
+    }else DROPDOWN_INPUT.value = '';
 }
 
 
