@@ -433,11 +433,9 @@ function searchDocuments(search_object, push_to_history = true) {
     let search_params;
     if(search_object === null)
         search_object = buildSearchArgs(1);
-    else {
-        search_params = parseSearchArgs(search_object);
-        fillSearchArgs(search_params);
-    }
-
+    else
+        fillSearchArgs(parseSearchArgs(search_object));
+    search_params = parseSearchArgs(search_object);
 
     let query_url_params = search_params.toString();
     console.log('查询参数: ' + search_params.toString());
