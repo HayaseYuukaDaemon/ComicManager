@@ -217,7 +217,6 @@ def delete_document(document_id: int,
                          },
                          fastapi.status.HTTP_200_OK: {"description": "返回内容"}
                      },
-                     dependencies=[fastapi.Depends(Authoricator())],
                      name='document.get_content')
 def get_document_content(request: fastapi.Request,
                          document_id: int,

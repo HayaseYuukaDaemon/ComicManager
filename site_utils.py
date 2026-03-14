@@ -155,36 +155,46 @@ def generate_thumbnail(document_id: int, file_path: Path):
         fu.write(thumbnail_content.read())
 
 
-def create_content_response(request: fastapi.Request, document,
-                            file_index: int) -> fastapi.responses.Response:
-    current_etag = hashlib.md5(f"{document.file_path}-{file_index}".encode()).hexdigest()
+def create_content_response(request: fastapi.Request, document, file_index: int) -> fastapi.responses.Response:
+    document_path = archived_document_path / document.file_path
+    stat = document_path.stat()
+    etag_src = f"{document.file_path}-{file_index}-{stat.st_mtime_ns}-{stat.st_size}"
+    current_etag = hashlib.md5(etag_src.encode()).hexdigest()
+
     if request.headers.get("if-none-match") == current_etag:
-        return fastapi.Response(status_code=fastapi.status.HTTP_304_NOT_MODIFIED, headers={"ETag": current_etag})
-    # 构造通用 Header
-    # formatdate(usegmt=True) 生成标准的 RFC 1123 格式时间 (e.g., Wed, 21 Oct 2015 07:28:00 GMT)
-    # 这比手动 strftime 更严谨且兼容性更好
+        return fastapi.Response(
+            status_code=fastapi.status.HTTP_304_NOT_MODIFIED,
+            headers={"ETag": current_etag}
+        )
+
     headers = {
         "Cache-Control": "public, max-age=2678400",
         "ETag": current_etag,
-        "Last-Modified": formatdate(usegmt=True)
+        "Last-Modified": formatdate(stat.st_mtime, usegmt=True),
     }
-    # 6. 未命中缓存：返回完整数据
-    document_path = archived_document_path / document.file_path
+
     if file_index == -1:
         thumbnail_path = thumbnail_folder / Path(f'{document.document_id}.webp')
         if not thumbnail_path.exists():
             generate_thumbnail(document.document_id, document_path)
-        return fastapi.responses.FileResponse(path=thumbnail_path)
+        return fastapi.responses.FileResponse(
+            path=thumbnail_path,
+            headers=headers,
+            media_type="image/webp",
+        )
+
     file_namelist = get_zip_namelist(document_path)
     try:
-        file_name = file_namelist[file_index]
+        file_name = Path(file_namelist[file_index])
     except IndexError:
-        raise fastapi.HTTPException(status_code=fastapi.status.HTTP_404_NOT_FOUND, detail='索引超出范围')
-    content = get_zip_image(document_path, file_name)
+        raise fastapi.HTTPException(status_code=404, detail='索引超出范围')
+
+    content = get_zip_image(document_path, str(file_name))
     if content is None:
-        raise fastapi.HTTPException(status_code=fastapi.status.HTTP_404_NOT_FOUND, detail='无法获取文档内容')
+        raise fastapi.HTTPException(status_code=404, detail='无法获取文档内容')
+
     return fastapi.responses.Response(
         content=content.read(),
-        media_type=f"image/webp",
+        media_type=f"image/{file_name.suffix.replace('.', '')}",
         headers=headers
     )
