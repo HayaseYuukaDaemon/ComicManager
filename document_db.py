@@ -527,6 +527,67 @@ if __name__ == '__main__':
             document_id_g = int(sys.argv[2])
             with open(f'{document_id_g}.zip', 'wb+') as ef:
                 asyncio.run(export_portable_document(document_id_g, db_g, ef))
+        elif cmd_g == 'edit':
+            if len(sys.argv) < 4:
+                print("用法: python document_db.py edit <document_id> key=value ...")
+                print("支持的字段: title, file_path, series_name, volume_number, authors")
+                print("示例: python document_db.py edit 42 title=\"New Title\" volume_number=3")
+                print("      python document_db.py edit 42 authors=\"作者A,作者B\"")
+                exit(1)
+            try:
+                doc_id_g = int(sys.argv[2])
+            except ValueError:
+                print(f"无效的文档ID: {sys.argv[2]}")
+                exit(1)
+
+            doc_g = db_g.get_document_by_id(doc_id_g)
+            if not doc_g:
+                print(f"文档 ID {doc_id_g} 不存在")
+                exit(1)
+
+            valid_keys = {'title', 'file_path', 'series_name', 'volume_number', 'authors'}
+            kwargs_g = {}
+            for arg_g in sys.argv[3:]:
+                if '=' not in arg_g:
+                    print(f"无效参数: {arg_g}, 需要 key=value 格式")
+                    exit(1)
+                k_g, v_g = arg_g.split('=', 1)
+                if k_g not in valid_keys:
+                    print(f"未知字段: {k_g}")
+                    print(f"支持的字段: {', '.join(sorted(valid_keys))}")
+                    exit(1)
+                kwargs_g[k_g] = v_g
+
+            # 显示当前值
+            print(f"文档 ID {doc_id_g}: {doc_g.title}")
+            print(f"  file_path: {doc_g.file_path}")
+            print(f"  series_name: {doc_g.series_name}")
+            print(f"  volume_number: {doc_g.volume_number}")
+            print(f"  authors: {', '.join(a.name for a in doc_g.authors)}")
+            print()
+
+            # 映射到 edit_document 参数
+            edit_kwargs_g = {}
+            for k_g, v_g in kwargs_g.items():
+                if k_g == 'title':
+                    edit_kwargs_g['title'] = v_g
+                elif k_g == 'file_path':
+                    edit_kwargs_g['filepath'] = v_g
+                    edit_kwargs_g['verify_file'] = False
+                elif k_g == 'series_name':
+                    edit_kwargs_g['series'] = v_g if v_g else None
+                elif k_g == 'volume_number':
+                    edit_kwargs_g['volume'] = int(v_g) if v_g else None
+                elif k_g == 'authors':
+                    edit_kwargs_g['authors'] = [a.strip() for a in v_g.split(',')]
+                print(f"  {k_g}: {getattr(doc_g, k_g, None)} -> {v_g}")
+
+            res_g = db_g.edit_document(doc_id_g, **edit_kwargs_g)
+            if res_g == 0:
+                print("修改成功")
+            else:
+                print(f"修改失败 Code: {res_g}")
+
         elif cmd_g == 'test':
             # 简单的测试逻辑
             cnt_g = len(db_g.get_all_document_ids())
