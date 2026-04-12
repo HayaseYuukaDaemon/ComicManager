@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <title>Hitomi Viewer</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/viewerjs/1.11.6/viewer.min.css">
+    <style>
+        :root {
+            --bg-color: #121212;
+            --bar-bg: #1e1e1e;
+            --text-color: #e0e0e0;
+            --accent-color: #4CAF50;
+            --border-color: #333;
+        }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 视口区域 */
+        .viewport {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            width: 100%;
+            overflow: hidden;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        img#displayedImage {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            cursor: zoom-in;
+            border-radius: 4px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+            opacity: 0; /* 初始隐藏，加载完显示 */
+            transition: opacity 0.2s ease;
+        }
+
+        /* 加载中提示 */
+        #loadingState {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #888;
+        }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: var(--accent-color);
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* 底部工具栏 */
+        .toolbar {
+            height: 60px;
+            background-color: var(--bar-bg);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 15px;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+
+        .group-center {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 14px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        button {
+            background-color: #333;
+            color: white;
+            border: 1px solid var(--border-color);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            user-select: none;
+            min-width: 60px;
+        }
+
+        button:active { background-color: var(--accent-color); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        input[type="number"] {
+            background-color: #2c2c2c;
+            border: 1px solid var(--border-color);
+            color: #aaa;
+            width: 40px;
+            padding: 5px;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 12px;
+            -moz-appearance: textfield;
+        }
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    </style>
+</head>
+<body>
+
+    <div class="viewport">
+        <div id="loadingState">
+            <div class="spinner"></div>
+            <div id="loadingText">正在获取 Hitomi 内容...</div>
+        </div>
+        <img id="displayedImage" alt="Document Page">
+    </div>
+
+    <div class="toolbar">
+        <div>
+            <button id="btnPrev" onclick="changeImage(-1)" disabled>Prev</button>
+        </div>
+        <div class="group-center">
+            <span class="page-info">
+                <span id="current" style="color: var(--accent-color); font-size: 1.1em;">-</span>
+                / <span id="total">-</span>
+            </span>
+            <div style="font-size: 10px; color: #666; margin-top: 2px;">
+                Step: <input type="number" id="stepInput" min="1" value="1">
+            </div>
+        </div>
+        <div>
+            <button id="btnNext" onclick="changeImage(1)" disabled>Next</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/viewerjs/1.11.6/viewer.min.js"></script>
+    <script>
+        var gg = {};
+    </script>
+    <script src="https://ltn.gold-usergeneratedcontent.net/gg.js"></script>
+    <script>
+        let images = [];
+        let currentIndex = 0;
+        let viewerInstance = null;
+        let hitomiId = null;
+
+        const imgElement = document.getElementById("displayedImage");
+        const loadingState = document.getElementById("loadingState");
+        const loadingText = document.getElementById("loadingText");
+        const currentEl = document.getElementById("current");
+        const totalEl = document.getElementById("total");
+        const btnPrev = document.getElementById("btnPrev");
+        const btnNext = document.getElementById("btnNext");
+
+        const DOMAIN2 = "gold-usergeneratedcontent.net";
+        const PROXY_BASE = "https://document-worker.hayaseyuuka.date/";
+        const PROXY_REFERER = "https://hitomi.la";
+
+        function getHitomiId() {
+            const params = new URLSearchParams(window.location.search);
+            const queryId = params.get("hitomi_id") || params.get("id");
+            if (queryId && /^\d+$/.test(queryId)) {
+                return queryId;
+            }
+
+            const pathSegments = window.location.pathname.split("/").filter(Boolean);
+            for (let i = pathSegments.length - 1; i >= 0; i--) {
+                const match = pathSegments[i].match(/(\d+)(?:\.html)?$/);
+                if (match) {
+                    return match[1];
+                }
+            }
+            return null;
+        }
+
+        function subdomainFromUrl(url, base, dir) {
+            let retval = "";
+            if (!base) {
+                if (dir === "webp") {
+                    retval = "w";
+                } else if (dir === "avif") {
+                    retval = "a";
+                }
+            }
+
+            const match = /\/[0-9a-f]{61}([0-9a-f]{2})([0-9a-f])/.exec(url);
+            if (!match) {
+                return retval;
+            }
+
+            const g = parseInt(match[2] + match[1], 16);
+            if (!Number.isNaN(g)) {
+                if (base) {
+                    retval = String.fromCharCode(97 + gg.m(g)) + base;
+                } else {
+                    retval = retval + (1 + gg.m(g));
+                }
+            }
+
+            return retval;
+        }
+
+        function urlFromUrl(url, base, dir) {
+            return url.replace(
+                /\/\/..?\.(?:gold-usergeneratedcontent\.net|hitomi\.la)\//,
+                "//" + subdomainFromUrl(url, base, dir) + "." + DOMAIN2 + "/"
+            );
+        }
+
+        function fullPathFromHash(hash) {
+            return gg.b + gg.s(hash) + "/" + hash;
+        }
+
+        function urlFromHash(galleryId, image, dir, ext) {
+            let targetExt = ext || dir || image.name.split(".").pop();
+            let targetDir = dir;
+            if (targetDir === "webp" || targetDir === "avif") {
+                targetDir = "";
+            } else {
+                targetDir += "/";
+            }
+            return "https://a." + DOMAIN2 + "/" + targetDir + fullPathFromHash(image.hash) + "." + targetExt;
+        }
+
+        function urlFromUrlFromHash(galleryId, image, dir, ext, base) {
+            if (base === "tn") {
+                const tnUrl = "https://a." + DOMAIN2 + "/" + dir + "/" + image.hash.replace(/^.*(..)(.)$/, "$2/$1/" + image.hash) + "." + ext;
+                return urlFromUrl(tnUrl, base);
+            }
+            return urlFromUrl(urlFromHash(galleryId, image, dir, ext), base, dir);
+        }
+
+        async function fetchGalleryInfo(id) {
+            const reqUrl = `https://ltn.gold-usergeneratedcontent.net/galleries/${id}.js`;
+            const response = await fetch(reqUrl);
+            if (!response.ok) {
+                throw new Error(`拉取 galleries/${id}.js 失败: ${response.status}`);
+            }
+            const rawText = await response.text();
+            if (!rawText.includes("galleryinfo")) {
+                throw new Error("未找到 galleryinfo 数据");
+            }
+            const match = rawText.match(/=\s*(\{[\s\S]*\})\s*;?\s*$/);
+            if (!match) {
+                throw new Error("galleryinfo 解析失败");
+            }
+            return JSON.parse(match[1]);
+        }
+
+        function decodeImageUrls(galleryInfo) {
+            if (!galleryInfo || !Array.isArray(galleryInfo.files)) {
+                return [];
+            }
+            return galleryInfo.files.map(file => {
+                const decodedUrl = urlFromUrlFromHash(galleryInfo.id, file, "webp");
+                return `${PROXY_BASE}?urlToProxy=${encodeURIComponent(decodedUrl)}&refererURL=${encodeURIComponent(PROXY_REFERER)}`;
+            });
+        }
+
+        async function init() {
+            hitomiId = getHitomiId();
+            if (!hitomiId) {
+                showError("URL 错误：缺少 hitomi_id（示例：?hitomi_id=3886065）");
+                return;
+            }
+
+            try {
+                if (!gg || typeof gg.m !== "function" || typeof gg.s !== "function" || !gg.b) {
+                    throw new Error("gg.js 未正确加载");
+                }
+                loadingText.innerText = `正在解析 Hitomi #${hitomiId}...`;
+                const galleryInfo = await fetchGalleryInfo(hitomiId);
+                images = decodeImageUrls(galleryInfo);
+                if (galleryInfo.title) {
+                    document.title = `${galleryInfo.title} - Hitomi Viewer`;
+                }
+
+                if (!Array.isArray(images) || images.length === 0) {
+                    throw new Error("未解析到任何图片 URL");
+                }
+
+                loadingState.style.display = 'none';
+                totalEl.innerText = images.length;
+                btnPrev.disabled = false;
+                btnNext.disabled = false;
+
+                updateImage();
+                initViewer();
+                preloadImages(3);
+
+            } catch (err) {
+                console.error(err);
+                showError(err.message);
+            }
+        }
+
+        function showError(msg) {
+            loadingText.innerText = msg;
+            loadingText.style.color = '#ff5252';
+            document.querySelector('.spinner').style.display = 'none';
+        }
+
+        function initViewer() {
+            if (viewerInstance) return;
+            viewerInstance = new Viewer(imgElement, {
+                inline: false,
+                button: true,
+                navbar: false,
+                title: false,
+                toolbar: {
+                    zoomIn: 1, zoomOut: 1, oneToOne: 1, reset: 1,
+                    rotateLeft: 1, rotateRight: 1
+                },
+                transition: false,
+                backdrop: 'rgba(0,0,0,0.95)',
+            });
+        }
+
+        function updateImage() {
+            imgElement.style.opacity = '0.5';
+            currentEl.innerText = (currentIndex + 1).toString();
+            const newSrc = images[currentIndex];
+
+            const tempImg = new Image();
+            tempImg.onload = () => {
+                imgElement.src = newSrc;
+                imgElement.style.opacity = '1';
+                if (viewerInstance) viewerInstance.update();
+            };
+            tempImg.onerror = () => {
+                imgElement.alt = "加载失败";
+                imgElement.style.opacity = '1';
+            };
+            tempImg.src = newSrc;
+        }
+
+        function changeImage(direction) {
+            if (images.length === 0) return;
+
+            let step = parseInt(document.getElementById("stepInput").value) || 1;
+            currentIndex += direction * step;
+
+            if (currentIndex < 0) currentIndex = 0;
+            if (currentIndex >= images.length) currentIndex = images.length - 1;
+
+            updateImage();
+            preloadImages(2);
+        }
+
+        function preloadImages(limit = 2) {
+            for (let i = 1; i <= limit; i++) {
+                let nextIndex = currentIndex + i;
+                if (nextIndex < images.length) {
+                    new Image().src = images[nextIndex];
+                }
+            }
+        }
+
+        window.onload = init;
+
+        document.addEventListener('keydown', (e) => {
+            if (document.querySelector('.viewer-in')) return;
+            if (e.key === 'ArrowLeft') changeImage(-1);
+            else if (e.key === 'ArrowRight') changeImage(1);
+        });
+
+        let touchStartX = 0;
+        document.addEventListener('touchstart', e => {
+            touchStartX = e.changedTouches[0].screenX;
+        }, { passive: true });
+
+        document.addEventListener('touchend', e => {
+            if (document.body.classList.contains('viewer-open')) return;
+            const delta = e.changedTouches[0].screenX - touchStartX;
+            if (Math.abs(delta) > 60) {
+                if (delta > 0) changeImage(-1);
+                else changeImage(1);
+            }
+        });
+    </script>
+</body>
+</html>
