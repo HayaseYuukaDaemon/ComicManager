@@ -124,13 +124,18 @@ async def hitomi_ui():
     return FileResponse('templates/hitomi.html')
 
 
+@router.get('/hitomi/viewer')
+async def hitomi_viewer_ui():
+    return FileResponse('templates/hitomi_viewer.html')
+
+
 MAX_SEARCH_RESULTS = 10
 
 
 @document_router.get('/search',
                      name='document.search.hitomi',
                      dependencies=[Depends(Authoricator())])
-async def search_comic(search_str: str) -> list[hitomiv2.Comic]:
+async def search_comic(search_str: str) -> list[hitomiv2.Comic | None]:
     result_ids = await hitomiv2.searchIDs(search_str + ' language:chinese', max_threads=5)
     if not result_ids:
         raise HTTPException(status_code=404, detail='未找到中文结果')
@@ -164,6 +169,8 @@ async def add_comic_post(request: AddComicRequest,
                          db: document_db.DocumentDB = Depends(get_db)) -> AddComicResponse:
     try:
         hitomi_result = await hitomiv2.getComic(request.source_document_id)
+        if hitomi_result is None:
+            return AddComicResponse(message=f'comic {request.source_document_id} not found')
     except Exception as e:
         return AddComicResponse(message=str(e))
     db_result = db.search_by_source(source_document_id=request.source_document_id)
@@ -177,6 +184,10 @@ async def add_comic_post(request: AddComicRequest,
         if db_result:
             document_tags.append(db_result)
             continue
+        if request.inexistent_tags is None:
+            return AddComicResponse(message=f'comic has inexistent tag {tag.hitomi_name} and no inexistent_tags provided')
+        if tag.hitomi_name is None:
+            return AddComicResponse(message='comic has tag with no hitomi name, cannot be added')
         tag_info_by_req = request.inexistent_tags.get(tag.hitomi_name, None)
         if tag_info_by_req is None:
             return AddComicResponse(message=f'tag {tag.hitomi_name} not found')
@@ -219,6 +230,8 @@ async def get_missing_tags(source_document_id: str,
     tags: list[MissingTag] = []
     for tag in plain_tags:
         if tag.query_db(db):
+            continue
+        if tag.hitomi_name is None:
             continue
         tags.append(MissingTag(name=tag.hitomi_name, group_id=tag.group_id))
     return tags

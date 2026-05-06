@@ -150,51 +150,10 @@ def generate_thumbnail(document_id: int, file_path: Path):
     thumbnail_content = get_zip_image(file_path, pic_list[0])
     if not thumbnail_folder.exists():
         thumbnail_folder.mkdir()
+    
+    if thumbnail_content is None:
+        logger.warning(f'无法生成缩略图，文档 {document_id} 的 ZIP 文件中没有图片')
+        return
 
     with open(thumbnail_folder / Path(f'{document_id}.webp'), "wb") as fu:
         fu.write(thumbnail_content.read())
-
-
-def create_content_response(request: fastapi.Request, document, file_index: int) -> fastapi.responses.Response:
-    document_path = archived_document_path / document.file_path
-    stat = document_path.stat()
-    etag_src = f"{document.file_path}-{file_index}-{stat.st_mtime_ns}-{stat.st_size}"
-    current_etag = hashlib.md5(etag_src.encode()).hexdigest()
-
-    if request.headers.get("if-none-match") == current_etag:
-        return fastapi.Response(
-            status_code=fastapi.status.HTTP_304_NOT_MODIFIED,
-            headers={"ETag": current_etag}
-        )
-
-    headers = {
-        "Cache-Control": "public, max-age=2678400",
-        "ETag": current_etag,
-        "Last-Modified": formatdate(stat.st_mtime, usegmt=True),
-    }
-
-    if file_index == -1:
-        thumbnail_path = thumbnail_folder / Path(f'{document.document_id}.webp')
-        if not thumbnail_path.exists():
-            generate_thumbnail(document.document_id, document_path)
-        return fastapi.responses.FileResponse(
-            path=thumbnail_path,
-            headers=headers,
-            media_type="image/webp",
-        )
-
-    file_namelist = get_zip_namelist(document_path)
-    try:
-        file_name = Path(file_namelist[file_index])
-    except IndexError:
-        raise fastapi.HTTPException(status_code=404, detail='索引超出范围')
-
-    content = get_zip_image(document_path, str(file_name))
-    if content is None:
-        raise fastapi.HTTPException(status_code=404, detail='无法获取文档内容')
-
-    return fastapi.responses.Response(
-        content=content.read(),
-        media_type=f"image/{file_name.suffix.replace('.', '')}",
-        headers=headers
-    )

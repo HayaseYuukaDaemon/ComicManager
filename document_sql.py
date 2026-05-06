@@ -11,7 +11,7 @@ class DocumentAuthorLink(SQLModel, table=True):
     """
     documents 与 authors 的多对多关联表
     """
-    __tablename__ = "document_authors"
+    __tablename__ = "document_authors" # type: ignore
 
     document_id: Optional[int] = Field(
         default=None,
@@ -31,7 +31,7 @@ class DocumentTagLink(SQLModel, table=True):
     """
     documents 与 tags 的多对多关联表
     """
-    __tablename__ = "document_tags"
+    __tablename__ = "document_tags" # type: ignore
 
     document_id: Optional[int] = Field(
         default=None,
@@ -53,15 +53,15 @@ class DocumentSourceLink(SQLModel, table=True):
     注意：此表包含 payload 字段 source_document_id，
     在 ORM 中通常作为关联对象处理，此处定义为带额外字段的 Link Model。
     """
-    __tablename__ = "document_sources"
+    __tablename__ = "document_sources" # type: ignore
 
-    document_id: Optional[int] = Field(
+    document_id: int = Field(
         default=None,
         foreign_key="documents.document_id",
         ondelete='CASCADE',
         primary_key=True
     )
-    source_id: Optional[int] = Field(
+    source_id: int = Field(
         default=None,
         foreign_key="sources.source_id",
         ondelete='CASCADE',
@@ -76,7 +76,7 @@ class DocumentSourceLink(SQLModel, table=True):
 # ==========================================
 
 class Author(SQLModel, table=True):
-    __tablename__ = "authors"
+    __tablename__ = "authors" # type: ignore
 
     author_id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(unique=True, index=True)
@@ -88,7 +88,7 @@ class Author(SQLModel, table=True):
 
 
 class Source(SQLModel, table=True):
-    __tablename__ = "sources"
+    __tablename__ = "sources" # type: ignore
 
     source_id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(unique=True)
@@ -102,7 +102,7 @@ class Source(SQLModel, table=True):
 
 
 class TagGroup(SQLModel, table=True):
-    __tablename__ = "tag_groups"
+    __tablename__ = "tag_groups" # type: ignore
 
     tag_group_id: Optional[int] = Field(default=None, primary_key=True)
     group_name: str = Field(unique=True)
@@ -112,7 +112,7 @@ class TagGroup(SQLModel, table=True):
 
 
 class Tag(SQLModel, table=True):
-    __tablename__ = "tags"
+    __tablename__ = "tags" # type: ignore
 
     tag_id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(unique=True)
@@ -133,7 +133,7 @@ class Tag(SQLModel, table=True):
 
 
 class Document(SQLModel, table=True):
-    __tablename__ = "documents"
+    __tablename__ = "documents" # type: ignore
 
     # 定义复合索引：对应 CREATE INDEX ... ON documents (series_name, volume_number)
     __table_args__ = (

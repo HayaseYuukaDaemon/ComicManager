@@ -4,29 +4,14 @@ import shutil
 import sys
 import zipfile
 from pathlib import Path
-from typing import Optional, Union, List, Iterable, Sequence, IO
+from typing import Optional, Union, List, Iterable, Sequence, IO, overload, Literal
 import sqlmodel
 from sqlalchemy.exc import NoResultFound
 # noinspection PyProtectedMember
 from sqlmodel.sql._expression_select_cls import SelectOfScalar
 import document_sql
 import yaml
-
-try:
-    from site_utils import get_file_hash, archived_document_path, get_zip_namelist, get_zip_image, thumbnail_folder
-except ImportError:
-    print('非网站环境,哈希函数fallback至默认,document路径,thumbnail目录,zip相关函数置空')
-    import hashlib
-
-
-    def get_file_hash(file_path: Union[str, Path], chunk_size: int = 8192):
-        hash_md5 = hashlib.md5()
-        with open(file_path, 'rb') as fi:
-            while chunk := fi.read(chunk_size):
-                hash_md5.update(chunk)
-        return hash_md5.hexdigest()
-    archived_document_path = Path(".")  # Fallback path
-    thumbnail_folder = Path("thumbnails")
+from site_utils import get_file_hash, archived_document_path
 
 
 # ==========================================
@@ -63,7 +48,10 @@ class DocumentDB:
             if isinstance(tag_instance, int):
                 tag_ids.add(tag_instance)
             if isinstance(tag_instance, document_sql.Tag):
-                tag_ids.add(tag_instance.tag_id)
+                if tag_instance.tag_id is not None:
+                    tag_ids.add(tag_instance.tag_id)
+                else:
+                    raise ValueError(f"Tag instance {tag_instance} has no tag_id")
         if not tag_ids:
             return self.query_all_documents()
         # 1. 基础 Join
@@ -77,8 +65,8 @@ class DocumentDB:
             # AND 逻辑：通过分组计数实现
             statement = (
                 statement
-                .group_by(document_sql.Document.document_id)
-                .having(sqlmodel.func.count(document_sql.DocumentTagLink.tag_id) == len(tag_ids))
+                .group_by(sqlmodel.col(document_sql.Document.document_id))
+                .having(sqlmodel.func.count(sqlmodel.col(document_sql.DocumentTagLink.tag_id)) == len(tag_ids))
             )
         else:
             # OR 逻辑：去重即可
@@ -139,18 +127,45 @@ class DocumentDB:
         builder = self.query_by_author(author_name)
         return self.session.exec(builder).all()
 
-    def search_by_source(self, source_document_id: str,
-                         source_id: Optional[int] = None,
-                         allow_multi=False) -> document_sql.Document | list[document_sql.Document] | None:
+    @overload
+    def search_by_source(
+        self, 
+        source_document_id: str,
+        source_id: int | None = None,
+        *,
+        allow_multi: Literal[False] = False
+    ) -> document_sql.Document | None: ...
+    
+    @overload
+    def search_by_source(
+        self,
+        source_document_id: str,
+        source_id: int | None = None,
+        *,
+        allow_multi: Literal[True]
+    ) -> list[document_sql.Document] | None: ...
+
+    def search_by_source(
+        self,
+        source_document_id: str,
+        source_id: int | None = None,
+        *,
+        allow_multi: bool = False,
+    ) -> document_sql.Document | list[document_sql.Document] | None:
         statement = sqlmodel.select(document_sql.DocumentSourceLink).where(
             document_sql.DocumentSourceLink.source_document_id == source_document_id
         )
         if source_id:
             statement = statement.where(document_sql.DocumentSourceLink.source_id == source_id)
-        search_result = self.session.exec(statement).all()
+        search_result: Sequence[document_sql.DocumentSourceLink] = self.session.exec(statement).all()
         if len(search_result) > 1:
             if allow_multi:
-                return [self.get_document_by_id(sr.document_id) for sr in search_result]
+                documents = []
+                for sr in search_result:
+                    doc = self.get_document_by_id(sr.document_id)
+                    if doc:
+                        documents.append(doc)
+                return documents
             raise ReferenceError('source_document_id 关联了多个文档, 指定source_id以缩小范围')
         if not search_result:
             return None
@@ -227,7 +242,7 @@ class DocumentDB:
                      series: Optional[str] = None,
                      volume: Optional[int] = None,
                      source: Optional[dict] = None,  # {'source_id': int, 'source_document_id': str}
-                     given_id: int = None,
+                     given_id: int | None = None,
                      check_file=True) -> int:
 
         # 验证
@@ -250,7 +265,7 @@ class DocumentDB:
         self.session.add(doc)
         self.session.commit()
         self.session.refresh(doc)  # 获取生成的 ID
-
+        assert doc.document_id is not None, "Document ID should not be None after refresh"
         # 处理作者
         if authors:
             for author_name in authors:
@@ -400,6 +415,9 @@ async def fix_file_hash(idb: DocumentDB, base_path: Union[str, Path]):
         # 查找旧文件在数据库中的记录
         doc = idb.search_by_file(test_file)
         if not doc:
+            raise FileNotFoundError(f'文件 {test_file.name} 在数据库中未找到记录')
+        assert doc.document_id is not None, "Document ID should not be None for existing file record"
+        if not doc:
             print(f'文件 {test_file.name} 未在数据库记录，跳过')
             continue
 
@@ -430,12 +448,15 @@ async def update_hitomi_file_hash(hitomi_id_list: list[int], idb: DocumentDB):
         if not doc:
             print(f'Hitomi ID {ihid} 未在数据库中找到')
             continue
+        assert doc.document_id is not None, "Document ID should not be None for existing record"
 
         print(f'Downloading {ihid}...')
         temp_file_path = temp_document_content_path / Path(f'{ihid}.zip')
         comic_file = open(temp_file_path, 'wb')
         try:
             document = await hitomiv2.getComic(ihid)
+            if not document:
+                raise RuntimeError(f"Document with Hitomi ID {ihid} not found in hitomiv2")
             dl_result = await hitomiv2.downloadComic(document, comic_file, max_threads=5)  # 假设返回文件路径字符串
             if not dl_result:
                 raise RuntimeError("Download failed")
@@ -471,7 +492,7 @@ async def export_portable_document(document_id: int,
     # noinspection PyTypeChecker
     statement = (
         sqlmodel.select(document_sql.DocumentSourceLink, document_sql.Source)
-        .join(document_sql.Source, document_sql.DocumentSourceLink.source_id == document_sql.Source.source_id)
+        .join(document_sql.Source, sqlmodel.col(document_sql.DocumentSourceLink.source_id) == document_sql.Source.source_id)
         .where(document_sql.DocumentSourceLink.document_id == document_id)
     )
     link, source = db.session.exec(statement).one()

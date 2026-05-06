@@ -1,7 +1,8 @@
 import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
-
+import hashlib
+from email.utils import formatdate
 import fastapi
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
@@ -11,8 +12,9 @@ import document_db
 from document_db import get_db
 from setup_logger import getLogger
 from site_utils import (archived_document_path,
+                        thumbnail_folder, 
+                        get_zip_image,
                         get_zip_namelist,
-                        create_content_response,
                         Authoricator,
                         UserAbilities,
                         PAGE_COUNT,
@@ -55,9 +57,9 @@ async def lifespan(app_instance: fastapi.FastAPI):
 
 
 # noinspection PyTypeChecker
-app_kwargs["lifespan"] = lifespan
+app_kwargs["lifespan"] = lifespan # type: ignore
 
-app = fastapi.FastAPI(**app_kwargs)
+app = fastapi.FastAPI(**app_kwargs) # type: ignore
 
 
 @app.get("/openapi.json",
@@ -144,7 +146,7 @@ def search_document(target_tag: int | None = None,
         target_page = page
     if source_document_id:
         try:
-            documents_info = db.search_by_source(source_document_id, source_id=source_id)
+            documents_info = [db.search_by_source(source_document_id, source_id)]
         except ReferenceError as ref_err:
             raise fastapi.HTTPException(status_code=fastapi.status.HTTP_400_BAD_REQUEST, detail=str(ref_err))
         total_count = 1
@@ -156,7 +158,9 @@ def search_document(target_tag: int | None = None,
                                                         target_page, PAGE_COUNT)
     else:
         total_count, documents_info = db.paginate_query(db.query_all_documents(), target_page, PAGE_COUNT)
-    search_results = [document.document_id for document in documents_info]
+    if documents_info is None:
+        documents_info = []
+    search_results = [document.document_id for document in documents_info if document and document.document_id]
     return SearchDocumentResponse(results=search_results, total_count=total_count)
 
 
@@ -232,32 +236,51 @@ def get_document_content(request: fastapi.Request,
     file_path = archived_document_path / document.file_path
     if not file_path.exists():
         raise fastapi.HTTPException(status_code=fastapi.status.HTTP_404_NOT_FOUND)
-    return create_content_response(request, document, content_index)
+    document_path = archived_document_path / document.file_path
+    stat = document_path.stat()
+    etag_src = f"{document.file_path}-{content_index}-{stat.st_mtime_ns}-{stat.st_size}"
+    current_etag = hashlib.md5(etag_src.encode()).hexdigest()
+
+    if request.headers.get("if-none-match") == current_etag:
+        return fastapi.Response(
+            status_code=fastapi.status.HTTP_304_NOT_MODIFIED,
+            headers={"ETag": current_etag},
+        )
+
+    headers = {
+        "Cache-Control": "public, max-age=2678400",
+        "ETag": current_etag,
+        "Last-Modified": formatdate(stat.st_mtime, usegmt=True),
+    }
+
+    if content_index == -1:
+        content_index = 0
+
+    file_namelist = get_zip_namelist(document_path)
+    try:
+        file_name = Path(file_namelist[content_index])
+    except IndexError:
+        raise fastapi.HTTPException(status_code=404, detail="索引超出范围")
+
+    content = get_zip_image(document_path, str(file_name))
+    if content is None:
+        raise fastapi.HTTPException(status_code=404, detail="无法获取文档内容")
+
+    return fastapi.responses.Response(
+        content=content.read(),
+        media_type=f"image/{file_name.suffix.replace('.', '')}",
+        headers=headers,
+    )
 
 
-@document_router.get('/{document_id}/thumbnail',
-                     response_class=fastapi.responses.FileResponse,
-                     responses={
-                         fastapi.status.HTTP_304_NOT_MODIFIED: {
-                             "description": "资源未修改，使用本地缓存",
-                             "content": {}
-                         },
-                         fastapi.status.HTTP_200_OK: {"description": "返回内容"}
-                     },
-                     dependencies=[fastapi.Depends(Authoricator())],
-                     name='document.get_content')
-def get_document_thmubnail(request: fastapi.Request,
-                           document_id: int,
-                           db: document_db.DocumentDB = fastapi.Depends(get_db)) -> fastapi.responses.Response:
-    if document_id < 0:
-        raise fastapi.HTTPException(status_code=fastapi.status.HTTP_400_BAD_REQUEST)
-    document = db.get_document_by_id(document_id)
-    if document is None:
-        raise fastapi.HTTPException(status_code=fastapi.status.HTTP_404_NOT_FOUND)
-    file_path = archived_document_path / document.file_path
-    if not file_path.exists():
-        raise fastapi.HTTPException(status_code=fastapi.status.HTTP_404_NOT_FOUND)
-    return create_content_response(request, document, 0)
+@document_router.get(
+    "/{document_id}/thumbnail",
+    response_class=fastapi.responses.RedirectResponse,
+    dependencies=[fastapi.Depends(Authoricator())],
+    name="document.get_thumbnail",
+)
+def get_document_thmubnail(document_id: int) -> fastapi.responses.RedirectResponse:
+    return fastapi.responses.RedirectResponse(url=f'/api/documents/{document_id}/page/0', status_code=fastapi.status.HTTP_307_TEMPORARY_REDIRECT)
 
 
 @tag_router.get('/',
@@ -266,7 +289,7 @@ def get_document_thmubnail(request: fastapi.Request,
 def get_tags(group_id: int | None = None, db: document_db.DocumentDB = fastapi.Depends(get_db)) -> dict[str, int | None] | dict[int, str]:
     logger.debug('收到tag查询')
     if group_id is None:
-        return {tag_group.tag_group_id: tag_group.group_name for tag_group in db.get_tag_groups()}
+        return {tag_group.tag_group_id: tag_group.group_name for tag_group in db.get_tag_groups() if tag_group.tag_group_id}
     if group_id < 0:
         raise fastapi.HTTPException(status_code=fastapi.status.HTTP_400_BAD_REQUEST)
     logger.debug(f'为请求{group_id}查询数据库')
@@ -296,7 +319,13 @@ def get_tag(tag_id: int, db: document_db.DocumentDB = fastapi.Depends(get_db)) -
 @app.get('/show_document/{document_id}',
          response_class=fastapi.responses.HTMLResponse,
          dependencies=[fastapi.Depends(Authoricator())])
-def show_document():
+def show_document(document_id: int, db: document_db.DocumentDB = fastapi.Depends(get_db)) -> fastapi.responses.FileResponse | fastapi.responses.RedirectResponse:
+    doc = db.get_document_by_id(document_id)
+    if doc:
+        if len(doc.sources) > 0:
+            source_id = doc.sources[0].source_id
+            if source_id == 1:
+                return fastapi.responses.RedirectResponse(f'/hitomi/viewer?source_document_id={document_id}', status_code=fastapi.status.HTTP_307_TEMPORARY_REDIRECT)
     return fastapi.responses.FileResponse('templates/gallery.html')
 
 
