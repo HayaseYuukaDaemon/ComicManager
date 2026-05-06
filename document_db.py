@@ -118,7 +118,7 @@ class DocumentDB:
         # session.exec 会返回包含 (Source, str) 的 Tuple
         results = self.session.exec(statement).one()
 
-        return results[0]
+        return results
 
     def get_all_document_ids(self) -> Sequence[document_sql.Document]:
         return self.session.exec(
