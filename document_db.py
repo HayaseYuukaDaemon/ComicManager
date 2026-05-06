@@ -106,6 +106,19 @@ class DocumentDB:
 
     # --- 查询方法 ---
 
+    def get_document_source_document_id(self, document_ptr: int | document_sql.Document) -> str:
+        document_id = document_ptr if isinstance(document_ptr, int) else document_ptr.document_id
+        statement = (
+            sqlmodel.select(document_sql.DocumentSourceLink.source_document_id)
+            .join(document_sql.DocumentSourceLink, sqlmodel.col(document_sql.DocumentSourceLink.source_id) == document_sql.Source.source_id)
+            .where(document_sql.DocumentSourceLink.document_id == document_id)
+        )
+    
+        # session.exec 会返回包含 (Source, str) 的 Tuple
+        results = self.session.exec(statement).one()
+
+        return results[0]
+
     def get_all_document_ids(self) -> Sequence[document_sql.Document]:
         return self.session.exec(
             sqlmodel.select(document_sql.Document).order_by(sqlmodel.desc(document_sql.Document.document_id))).all()

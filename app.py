@@ -324,7 +324,8 @@ def show_document(document_id: int, db: document_db.DocumentDB = fastapi.Depends
         if len(doc.sources) > 0:
             source_id = doc.sources[0].source_id
             if source_id == 1:
-                return fastapi.responses.RedirectResponse(f'/hitomi/viewer?hitomi_id={document_id}', status_code=fastapi.status.HTTP_307_TEMPORARY_REDIRECT)
+                doc.sources
+                return fastapi.responses.RedirectResponse(f'/hitomi/viewer?hitomi_id={db.get_document_source_document_id(doc)}', status_code=fastapi.status.HTTP_307_TEMPORARY_REDIRECT)
     return fastapi.responses.FileResponse('templates/gallery.html')
 
 
