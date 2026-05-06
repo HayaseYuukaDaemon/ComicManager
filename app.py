@@ -317,9 +317,8 @@ def get_tag(tag_id: int, db: document_db.DocumentDB = fastapi.Depends(get_db)) -
 
 
 @app.get('/show_document/{document_id}',
-         response_class=fastapi.responses.HTMLResponse,
          dependencies=[fastapi.Depends(Authoricator())])
-def show_document(document_id: int, db: document_db.DocumentDB = fastapi.Depends(get_db)) -> fastapi.responses.FileResponse | fastapi.responses.RedirectResponse:
+def show_document(document_id: int, db: document_db.DocumentDB = fastapi.Depends(get_db)):
     doc = db.get_document_by_id(document_id)
     if doc:
         if len(doc.sources) > 0:
