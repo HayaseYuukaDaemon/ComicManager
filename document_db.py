@@ -110,6 +110,7 @@ class DocumentDB:
         document_id = document_ptr if isinstance(document_ptr, int) else document_ptr.document_id
         statement = (
             sqlmodel.select(document_sql.DocumentSourceLink.source_document_id)
+            .select_from(document_sql.Source)
             .join(document_sql.DocumentSourceLink, sqlmodel.col(document_sql.DocumentSourceLink.source_id) == document_sql.Source.source_id)
             .where(document_sql.DocumentSourceLink.document_id == document_id)
         )
