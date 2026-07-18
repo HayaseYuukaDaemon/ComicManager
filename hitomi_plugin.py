@@ -203,7 +203,6 @@ async def add_comic_post(request: AddComicRequest,
         except Exception as e:
             return AddComicResponse(message=f'tag {tag.hitomi_name} db add failed: {str(e)}')
         document_tags.append(db_result)
-    bg_tasks.add_task(implement_document, hitomi_result, document_tags)
     return AddComicResponse(redirect_url='/show_status')
 
 

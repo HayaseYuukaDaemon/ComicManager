@@ -19,4 +19,4 @@ archived_documents/
 hitomi_js
 thumbnail/
 auth.json
-documents.db
+*.db
