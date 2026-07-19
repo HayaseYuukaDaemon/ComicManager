@@ -327,6 +327,9 @@ def show_document(document_id: int, db: document_db.DocumentDB = fastapi.Depends
                 return fastapi.responses.RedirectResponse(f'/hitomi/viewer?hitomi_id={db.get_document_source_document_id(doc)}', status_code=fastapi.status.HTTP_307_TEMPORARY_REDIRECT)
     return fastapi.responses.FileResponse('templates/gallery.html')
 
+@app.get('/dmb', dependencies=[fastapi.Depends(Authoricator())])
+def dmb_viewer():
+    return fastapi.responses.FileResponse('templates/dmb-viewer.html')
 
 @app.get('/exploror',
          response_class=fastapi.responses.HTMLResponse,
