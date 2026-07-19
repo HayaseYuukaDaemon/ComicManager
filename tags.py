@@ -12,10 +12,11 @@ class SourceSite(str, enum.Enum):
 
 class TagGroup(str, enum.Enum):
     Tag = "tag"
-    Character = "character"
-    Parody = "parody"
+    Character = "character" 
+    Parody = "parody" # 世界观
     Expo = "expo" # 展会
     Group = "group" # 所属发行社团
+    Language = "language" # 语言
 
 class SpecificTag(pydantic.BaseModel):
     """
