@@ -18,7 +18,7 @@ const doc = (id, status = "downloading", extra = {}) => ({
 const response = (data) => new Response(JSON.stringify(data));
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
-test("仅按非 archived 状态查询，包含失败、删除和清理记录，不读取 CM 或已归档库", async (t) => {
+test("仅查询下载中、解析中、排队中和失败，不请求归档、删除、清理状态或 CM 库", async (t) => {
   const requests = [];
   t.mock.method(globalThis, "fetch", async (url, options) => {
     assert.equal(url, "https://dmb.test/v1/documents/query");
@@ -28,7 +28,7 @@ test("仅按非 archived 状态查询，包含失败、删除和清理记录，�
     assert.equal(body.mode, "by_status");
     assert.equal(body.limit, 100);
     assert.equal(body.offset, 0);
-    assert.notEqual(body.params.status, "archived");
+    assert.ok(!["archived", "deleted", "purged"].includes(body.params.status));
     requests.push(body.params.status);
     return response([
       doc(
@@ -38,7 +38,7 @@ test("仅按非 archived 状态查询，包含失败、删除和清理记录，�
     ]);
   });
   const rows = await readDownloadDocuments("https://dmb.test");
-  assert.deepEqual(requests, DOWNLOAD_STATUSES);
+  assert.deepEqual(requests, ["downloading", "resolving", "queued", "failed"]);
   assert.deepEqual(
     rows.map((row) => row.status),
     DOWNLOAD_STATUSES,
@@ -64,14 +64,17 @@ test("同一状态超过 100 部会继续分页，ID 倒序且没有截断", asy
   assert.equal(rows.at(-1).document_id, 1);
 });
 
-test("轮询期间状态切换按较新记录去重，已归档记录移除", async (t) => {
+test("轮询期间状态切换按较新记录去重，归档、删除和清理记录移除，保留失败", async (t) => {
   t.mock.method(globalThis, "fetch", async (_, options) => {
     const { params } = JSON.parse(options.body);
-    if (params.status === "downloading") return response([doc(1), doc(2)]);
+    if (params.status === "downloading")
+      return response([doc(1), doc(2), doc(3), doc(4)]);
     if (params.status === "failed")
       return response([
         doc(1, "failed", { updated_at: "2026-09-12T08:00:00.000000001Z" }),
         doc(2, "archived", { updated_at: "2026-09-12T08:00:01Z" }),
+        doc(3, "deleted", { updated_at: "2026-09-12T08:00:01Z" }),
+        doc(4, "purged", { updated_at: "2026-09-12T08:00:01Z" }),
       ]);
     return response([]);
   });

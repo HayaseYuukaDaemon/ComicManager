@@ -3,7 +3,7 @@ import {
   DOWNLOAD_STATUSES,
   downloadProgress,
   pollDownloads,
-} from "./download-progress.js?v=downloads-1";
+} from "./download-progress.js?v=downloads-2";
 
 export function createDownloadPage({ el, empty, getDmbUrl, setService }) {
   const $ = (id) => document.getElementById(id);

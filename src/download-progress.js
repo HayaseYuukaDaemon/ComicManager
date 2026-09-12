@@ -1,5 +1,8 @@
 import { ApiError, dmb } from "./entry-api.js";
-import { timestampNanos } from "./pending-comics.js?v=queue-status-1";
+import {
+  DMB_STATUSES,
+  timestampNanos,
+} from "./pending-comics.js?v=queue-status-1";
 
 // QueryByStatus accepts one status per request; never scan the archived library.
 export const DOWNLOAD_STATUSES = [
@@ -7,8 +10,6 @@ export const DOWNLOAD_STATUSES = [
   "resolving",
   "queued",
   "failed",
-  "deleted",
-  "purged",
 ];
 
 export function downloadProgress(document) {
@@ -61,7 +62,7 @@ export async function readDownloadDocuments(base, { signal } = {}) {
                 !row ||
                 !Number.isSafeInteger(row.document_id) ||
                 row.document_id < 0 ||
-                ![...DOWNLOAD_STATUSES, "archived"].includes(row.status),
+                !Object.hasOwn(DMB_STATUSES, row.status),
             )
           )
             throw new ApiError(
@@ -97,7 +98,7 @@ export async function readDownloadDocuments(base, { signal } = {}) {
         documents.set(row.document_id, row);
     }
     return [...documents.values()]
-      .filter((row) => row.status !== "archived")
+      .filter((row) => DOWNLOAD_STATUSES.includes(row.status))
       .sort(
         (a, b) =>
           DOWNLOAD_STATUSES.indexOf(a.status) -

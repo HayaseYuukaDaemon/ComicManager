@@ -39,7 +39,7 @@ import { createLibraryPage } from "./library-page.js?v=id-desc-1";
 import { createComicReader } from "./comic-reader.js?v=full-preload-1";
 import { libraryReturn } from "./comic-library.js";
 import { runBatchEntry } from "./batch-entry.js?v=queue-status-1";
-import { createDownloadPage } from "./download-page.js?v=downloads-1";
+import { createDownloadPage } from "./download-page.js?v=downloads-2";
 
 const $ = (id) => document.getElementById(id);
 const groupLabel = (group) => `${GROUP_NAMES[group] || group} · ${group}`;
