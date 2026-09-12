@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/viewerjs/1.11.6/viewer.min.css">
-    <link rel="stylesheet" href="/src/viewer.css?v=full-cache-1">
+    <link rel="stylesheet" href="/src/viewer.css?v=cache-inline-1">
 </head>
 <body class="dmb-viewer">
 
@@ -31,9 +31,6 @@
                 <label for="stepInput">Step:</label> <input type="number" id="stepInput" min="1" value="1" aria-label="翻页步长">
             </div>
         </div>
-        <div>
-            <button id="btnNext" type="button" disabled>Next</button>
-        </div>
         <div class="cache-status" aria-label="图片缓存">
             <div class="cache-status-line">
                 <span id="cacheSummary">已缓存 0 / — 页</span>
@@ -41,6 +38,9 @@
                 <button id="retryCache" type="button" hidden>重试失败页</button>
             </div>
             <progress id="cacheProgress" value="0" max="1" aria-label="漫画缓存进度"></progress>
+        </div>
+        <div>
+            <button id="btnNext" type="button" disabled>Next</button>
         </div>
     </div>
 

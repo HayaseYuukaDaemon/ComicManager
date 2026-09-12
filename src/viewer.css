@@ -128,29 +128,33 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 .dmb-viewer #loadingState.has-error { color: #ff8c8c; }
 .dmb-viewer #retryPage { margin-top: 16px; }
 .dmb-viewer .toolbar {
-    height: auto;
+    height: calc(60px + env(safe-area-inset-bottom));
+    box-sizing: border-box;
     flex-shrink: 0;
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: 8px 12px;
-    padding: 10px 15px max(10px, env(safe-area-inset-bottom));
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    gap: 16px;
+    padding: 4px 15px calc(4px + env(safe-area-inset-bottom));
 }
 .dmb-viewer .cache-status {
-    grid-column: 1 / -1;
-    width: min(100%, 760px);
-    justify-self: center;
+    min-width: 0;
+    width: min(100%, 520px);
     font-size: 12px;
     font-variant-numeric: tabular-nums;
     color: #aaa;
 }
 .dmb-viewer .cache-status-line {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr) auto;
     align-items: center;
-    gap: 4px 12px;
+    gap: 2px 12px;
 }
 .dmb-viewer #cacheSummary { color: var(--text-color); }
+.dmb-viewer #cacheActivity {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 .dmb-viewer #retryCache { padding: 2px 8px; font-size: 12px; }
 .dmb-viewer #cacheProgress {
     display: block;
@@ -167,3 +171,14 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
 .dmb-viewer #cacheProgress::-webkit-progress-bar { background: #333; }
 .dmb-viewer #cacheProgress::-webkit-progress-value { background: var(--accent-color); }
 .dmb-viewer #cacheProgress::-moz-progress-bar { background: var(--accent-color); }
+
+@media (max-width: 600px) {
+    .dmb-viewer .toolbar { gap: 8px; padding-left: 10px; padding-right: 10px; }
+    .dmb-viewer .toolbar > div > button { min-width: 44px; padding: 8px 10px; }
+    .dmb-viewer .cache-status { font-size: 11px; }
+    .dmb-viewer .cache-status-line { grid-template-columns: minmax(0, 1fr) auto; gap: 2px 4px; }
+    .dmb-viewer #cacheSummary { grid-column: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .dmb-viewer #cacheActivity { grid-column: 1; grid-row: 2; font-size: 10px; }
+    .dmb-viewer #retryCache { grid-column: 2; grid-row: 1 / 3; min-width: 0; padding: 2px 4px; font-size: 10px; }
+    .dmb-viewer #cacheProgress { margin-top: 4px; }
+}
