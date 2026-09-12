@@ -3,7 +3,7 @@
 本文档记录 ComicManager 新版 Web 前端的既定设计。目标是在后续上下文丢失、
 更换实现者或继续重构时，仍能恢复当前的架构边界和交互意图。
 
-最后更新：2026-09-06。
+最后更新：2026-09-12。
 
 ## 当前实现与运行
 
@@ -12,6 +12,7 @@
 - 录入工作台：`/exploror#/entry/{comic_id}`。
 - 阅读页：`/exploror#/read/{comic_id}`，读取 DMB 页面，支持翻页、页码跳转和原始大小显示。
 - 待处理队列：`/exploror#/pending`，默认 anchor 扫描，也可手动全量扫描；筛选与分页只用于查看。
+- 下载进度：`/exploror#/downloads`，每秒刷新所有非 archived 状态，包含 failed，展示页数、百分比及失败原因。
 - 通用标签管理：`/exploror#/tags`，支持分类搜索、新建标签、查看来源映射及分页。
 - 页面沿用现有 `/exploror` 和 `/src/{filename}` 路由，未增加后端接口。
 - 使用原生 JavaScript 模块与本地 Bootstrap 5.3.8 资源，无前端构建步骤。
@@ -85,6 +86,21 @@ API 分为两个资源域：
 8. `POST /api/comics/{comic_id}/commit` 不接收映射决定。它重新读取来源数据，
    并在所有 SpecificTag 已经具有唯一映射时才录入漫画。
 9. Comic commit 必须是单一数据库事务；失败时不得留下部分 Comic 数据。
+
+## 下载进度观察
+
+- 独立栏目 `#/downloads`，与待处理录入队列分别维护状态。
+- 使用 DMB 现有 `POST /v1/documents/query`，`mode=by_status`、`params.status` 每次指定
+  一个状态；每轮并行查询 downloading、resolving、queued、failed、deleted、purged，
+  各状态按 ID 倒序分页读取全部结果，每页 100 条，不查询 archived 或 CM 漫画列表。
+- 进入立即刷新，此后每秒启动一轮；上一轮未结束时跳过本次，避免请求叠加。
+  离开栏目、关闭页面、暂停刷新或切换 DMB 地址时取消计时器与在途请求；旧响应不覆盖新页面。
+- 使用原始 `progress.done / progress.total` 显示已下载页数和百分比。
+  总页数未知时不显示虚假的 0% 或 100%；failed 保留已完成进度并可展开原始 `error` 文本。
+- 下载中优先显示，其余按状态分组、组内 ID 倒序；状态切换时按最新记录去重，
+  已归档条目在后续刷新中自动移出。刷新时保留已展开的失败详情。
+- 请求失败保留上次结果，显示失败提示并在下一轮自动重试；整轮成功才替换列表。
+- 全程使用 viewer 只读接口，不触发下载、重试下载、删除或录入操作。
 
 ## 待处理队列与扫描
 

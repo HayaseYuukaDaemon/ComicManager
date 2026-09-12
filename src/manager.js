@@ -39,6 +39,7 @@ import { createLibraryPage } from "./library-page.js?v=id-desc-1";
 import { createComicReader } from "./comic-reader.js?v=full-preload-1";
 import { libraryReturn } from "./comic-library.js";
 import { runBatchEntry } from "./batch-entry.js?v=queue-status-1";
+import { createDownloadPage } from "./download-page.js?v=downloads-1";
 
 const $ = (id) => document.getElementById(id);
 const groupLabel = (group) => `${GROUP_NAMES[group] || group} · ${group}`;
@@ -299,14 +300,15 @@ function showPage(view) {
     "loading",
     "tags",
     "pending",
+    "downloads",
   ])
     $(name + "-page").hidden = name !== view;
   const activeNav = ["browse", "reader"].includes(view)
     ? "browse"
-    : view === "tags" || view === "pending"
+    : ["tags", "pending", "downloads"].includes(view)
       ? view
       : "entry";
-  for (const name of ["browse", "entry", "tags", "pending"]) {
+  for (const name of ["browse", "entry", "tags", "pending", "downloads"]) {
     if (name === activeNav)
       $("nav-" + name).setAttribute("aria-current", "page");
     else $("nav-" + name).removeAttribute("aria-current");
@@ -402,6 +404,10 @@ async function route() {
       await scanPending(
         pending.phase === "ready" && pending.refreshIds.size > 0,
       );
+  } else if (hash === "#/downloads") {
+    document.title = "下载进度 · ComicManager";
+    showPage("downloads");
+    downloadPage.show(pageController.signal);
   } else if (hash === "#/tags") {
     document.title = "标签管理 · ComicManager";
     showPage("tags");
@@ -2427,6 +2433,16 @@ const reader = createComicReader({
   getImageRoute: () => imageRoute,
   setService,
   announce,
+});
+const downloadPage = createDownloadPage({
+  el,
+  empty,
+  getDmbUrl: () => dmbUrl,
+  setService,
+});
+window.addEventListener("pagehide", () => pageController.abort());
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) void route();
 });
 window.addEventListener("hashchange", route);
 void route();

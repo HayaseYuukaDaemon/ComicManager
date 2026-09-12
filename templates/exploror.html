@@ -10,10 +10,10 @@
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23395349'/%3E%3Cpath d='M9 8h6v16H9zm9 0h5v16h-5z' fill='%23fff'/%3E%3C/svg%3E"
     />
     <link rel="stylesheet" href="/src/bootstrap.min.css" />
-    <link rel="stylesheet" href="/src/manager.css?v=anchor-queue-1" />
+    <link rel="stylesheet" href="/src/manager.css?v=downloads-1" />
     <link rel="stylesheet" href="/src/library.css?v=full-preload-1" />
     <script src="/src/bootstrap.bundle.min.js" defer></script>
-    <script src="/src/manager.js?v=queue-status-1" type="module"></script>
+    <script src="/src/manager.js?v=downloads-1" type="module"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">跳转到主要内容</a>
@@ -26,6 +26,7 @@
         <a id="nav-browse" href="#/" aria-current="page">漫画库</a>
         <a id="nav-entry" href="#/entry">漫画录入</a>
         <a id="nav-pending" href="#/pending">待处理队列</a>
+        <a id="nav-downloads" href="#/downloads">下载进度</a>
         <a id="nav-tags" href="#/tags">标签管理</a>
       </nav>
       <div class="header-actions">
@@ -290,6 +291,50 @@
           <div id="pending-results" aria-live="polite"></div>
           <div id="pending-pagination" class="pagination-bar"></div>
         </div>
+      </section>
+
+      <section
+        id="downloads-page"
+        class="downloads-page"
+        hidden
+        aria-labelledby="downloads-heading"
+      >
+        <div class="section-heading">
+          <div>
+            <h1 id="downloads-heading">下载进度</h1>
+            <p>查看未归档记录的实时进度与失败原因。</p>
+          </div>
+          <div class="downloads-controls">
+            <span id="downloads-live">每秒自动刷新</span>
+            <button
+              id="downloads-toggle"
+              class="btn btn-outline-secondary"
+              type="button"
+            >
+              暂停刷新
+            </button>
+          </div>
+        </div>
+        <p id="downloads-loading" class="text-secondary" role="status">
+          正在读取下载进度…
+        </p>
+        <p
+          id="downloads-error"
+          class="alert alert-danger"
+          role="alert"
+          hidden
+        ></p>
+        <div id="downloads-summary" class="downloads-summary" hidden>
+          <strong id="downloads-total"></strong>
+          <span id="downloads-counts"></span>
+          <small id="downloads-updated"></small>
+        </div>
+        <div id="downloads-empty" hidden></div>
+        <div
+          id="downloads-results"
+          class="downloads-results"
+          aria-label="未归档记录"
+        ></div>
       </section>
 
       <section
