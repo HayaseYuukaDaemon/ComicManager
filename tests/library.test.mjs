@@ -57,13 +57,14 @@ test("非法页码、标签和匹配方式不能静默变为无条件查询", ()
     assert.throws(() => parseLibraryHash(hash), hash);
 });
 
-test("阅读返回地址只接受漫画库查询路由", () => {
+test("详情返回地址只接受漫画库查询路由", () => {
   for (const value of [
     null,
     "https://example.com/",
     "javascript:alert(1)",
     "#/entry/1",
     "#/read/1",
+    "#/comic/1",
     "#/?tags=bad",
   ])
     assert.equal(libraryReturn(value), "#/");

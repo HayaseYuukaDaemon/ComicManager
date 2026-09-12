@@ -9,6 +9,7 @@ import {
   documentPages,
   pageImageUrl,
 } from "./comic-library.js?v=id-desc-1";
+import { comicDetailLink } from "./comic-links.js?v=comic-detail-1";
 
 export function createLibraryPage({
   el,
@@ -346,16 +347,13 @@ export function createLibraryPage({
     ];
   }
 
-  function readLink(comic) {
-    return `#/read/${comic.id}?back=${encodeURIComponent(libraryHash(filters))}`;
-  }
   function card(comic) {
     const cover = el(
       "a",
       {
-        href: readLink(comic),
+        href: comicDetailLink(comic.id, libraryHash(filters)),
         class: "comic-cover",
-        "aria-label": `阅读 ${comic.title}`,
+        "aria-label": `查看详情：${comic.title}`,
       },
       el("span", { class: "cover-placeholder" }, "正在加载封面…"),
     );
@@ -375,7 +373,11 @@ export function createLibraryPage({
           el(
             "h2",
             {},
-            el("a", { href: readLink(comic) }, comic.title || "未命名漫画"),
+            el(
+              "a",
+              { href: comicDetailLink(comic.id, libraryHash(filters)) },
+              comic.title || "未命名漫画",
+            ),
           ),
           el(
             "div",
@@ -448,7 +450,7 @@ export function createLibraryPage({
               el(
                 "span",
                 { class: "cover-placeholder" },
-                "封面暂不可用 · 点击阅读",
+                "封面暂不可用 · 查看详情",
               ),
             );
         },

@@ -11,9 +11,9 @@
     />
     <link rel="stylesheet" href="/src/bootstrap.min.css" />
     <link rel="stylesheet" href="/src/manager.css?v=downloads-1" />
-    <link rel="stylesheet" href="/src/library.css?v=full-preload-1" />
+    <link rel="stylesheet" href="/src/library.css?v=comic-detail-1" />
     <script src="/src/bootstrap.bundle.min.js" defer></script>
-    <script src="/src/manager.js?v=downloads-2" type="module"></script>
+    <script src="/src/manager.js?v=comic-detail-1" type="module"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">跳转到主要内容</a>
@@ -172,10 +172,10 @@
       </section>
 
       <section
-        id="reader-page"
-        class="reader-page"
+        id="comic-detail-page"
+        class="comic-detail-page"
         hidden
-        aria-label="漫画阅读"
+        aria-label="漫画详情"
       ></section>
 
       <section
@@ -525,6 +525,18 @@
           用于读取归档列表与来源数据。请与 ComicManager 后端的 DMB
           地址保持一致。
         </p>
+        <label for="viewer-url" class="form-label mt-3">阅览器地址</label>
+        <input
+          id="viewer-url"
+          class="form-control"
+          type="text"
+          placeholder="/dmb-viewer.html"
+          aria-describedby="viewer-url-hint"
+        />
+        <p id="viewer-url-hint" class="form-text">
+          留空使用自带阅览器。支持本站路径或 HTTP / HTTPS
+          地址，打开时自动附加漫画 ID，已有其他参数会保留。
+        </p>
         <fieldset class="mt-4" aria-describedby="image-route-hint">
           <legend class="form-label">图片线路</legend>
           <div class="btn-group w-100">
@@ -551,7 +563,7 @@
             >
           </div>
           <p id="image-route-hint" class="form-text mt-2">
-            用于漫画封面和阅读页面，保存后立即生效并记住选择。
+            用于漫画库与详情页的封面，保存后立即生效并记住选择。
           </p>
         </fieldset>
         <div class="connection-note">

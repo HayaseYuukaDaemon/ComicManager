@@ -410,6 +410,13 @@ def exploror():
     return fastapi.responses.FileResponse(path='templates/exploror.html')
 
 
+@app.get('/dmb-viewer.html',
+         response_class=fastapi.responses.HTMLResponse,
+         dependencies=[fastapi.Depends(Authoricator())])
+def dmb_viewer():
+    return fastapi.responses.FileResponse(path='templates/dmb-viewer.html')
+
+
 @app.get('/', dependencies=[fastapi.Depends(Authoricator())])
 async def root():
     return fastapi.responses.RedirectResponse(url='/exploror', status_code=fastapi.status.HTTP_303_SEE_OTHER)

@@ -23,7 +23,7 @@ const btnNext = document.getElementById("btnNext");
 
 // 1. 从 URL 提取 document_id
 function getDocumentId() {
-    return window.location.search.split('id=')[1] || null;
+    return new URLSearchParams(window.location.search).get('id');
 }
 
 /**

@@ -35,8 +35,13 @@ import {
   readEntryCompletion,
   filterPending,
 } from "./pending-comics.js?v=queue-status-1";
-import { createLibraryPage } from "./library-page.js?v=id-desc-1";
-import { createComicReader } from "./comic-reader.js?v=full-preload-1";
+import { createLibraryPage } from "./library-page.js?v=comic-detail-1";
+import { createComicDetail } from "./comic-detail.js?v=comic-detail-1";
+import {
+  DEFAULT_VIEWER_URL,
+  validateViewerUrl,
+  comicDetailLink,
+} from "./comic-links.js?v=comic-detail-1";
 import { libraryReturn } from "./comic-library.js";
 import { runBatchEntry } from "./batch-entry.js?v=queue-status-1";
 import { createDownloadPage } from "./download-page.js?v=downloads-2";
@@ -100,6 +105,15 @@ const batchEntry = {
 };
 let dmbUrl = DEFAULT_DMB_URL;
 let imageRoute = "proxy";
+let viewerUrl = DEFAULT_VIEWER_URL;
+try {
+  viewerUrl = validateViewerUrl(
+    localStorage.getItem("comicmanager.viewerUrl") || DEFAULT_VIEWER_URL,
+    location.href,
+  );
+} catch {
+  /* 使用本站的独立阅览器。 */
+}
 try {
   if (localStorage.getItem("comicmanager.imageRoute") === "direct")
     imageRoute = "direct";
@@ -295,7 +309,7 @@ function showPage(view) {
   state.view = view;
   for (const name of [
     "browse",
-    "reader",
+    "comic-detail",
     "entry",
     "loading",
     "tags",
@@ -303,7 +317,7 @@ function showPage(view) {
     "downloads",
   ])
     $(name + "-page").hidden = name !== view;
-  const activeNav = ["browse", "reader"].includes(view)
+  const activeNav = ["browse", "comic-detail"].includes(view)
     ? "browse"
     : ["tags", "pending", "downloads"].includes(view)
       ? view
@@ -337,7 +351,6 @@ async function route() {
   }
   state.hash = hash;
   pageController.abort();
-  reader.stop();
   pending.controller?.abort();
   pageController = new AbortController();
   searchController?.abort();
@@ -352,7 +365,7 @@ async function route() {
   state.phase = "idle";
   renderMessage();
   const match = hash.match(/^#\/entry\/(\d+)(?:\?(.*))?$/);
-  const readMatch = hash.match(/^#\/read\/(\d+)(?:\?(.*))?$/);
+  const detailMatch = hash.match(/^#\/(?:comic|read)\/(\d+)(?:\?(.*))?$/);
   if (
     hash === "#/entry" ||
     (match && Number.isSafeInteger(Number(match[1])) && Number(match[1]) > 0)
@@ -385,15 +398,21 @@ async function route() {
     history.replaceState(null, "", state.hash);
     await loadEntry(row.id, version);
   } else if (
-    readMatch &&
-    Number.isSafeInteger(Number(readMatch[1])) &&
-    Number(readMatch[1]) > 0
+    detailMatch &&
+    Number.isSafeInteger(Number(detailMatch[1])) &&
+    Number(detailMatch[1]) > 0
   ) {
-    document.title = "漫画阅读 · ComicManager";
-    showPage("reader");
-    await reader.show(
-      Number(readMatch[1]),
-      new URLSearchParams(readMatch[2] || ""),
+    document.title = "漫画详情 · ComicManager";
+    const params = new URLSearchParams(detailMatch[2] || "");
+    state.lastLibraryHash = libraryReturn(params.get("back"));
+    $("nav-browse").href = state.lastLibraryHash;
+    state.hash = comicDetailLink(Number(detailMatch[1]), params.get("back"));
+    history.replaceState(null, "", state.hash);
+    showPage("comic-detail");
+    window.scrollTo({ top: 0 });
+    await detailPage.show(
+      Number(detailMatch[1]),
+      params,
       pageController.signal,
     );
   } else if (hash === "#/pending") {
@@ -1965,10 +1984,10 @@ function renderResult() {
       el(
         "a",
         {
-          href: `#/read/${state.comicId}?back=${encodeURIComponent(state.lastLibraryHash)}`,
+          href: comicDetailLink(state.comicId, state.lastLibraryHash),
           class: "btn btn-outline-secondary",
         },
-        "阅读漫画",
+        "查看漫画详情",
       ),
       button(
         "查看本次标签",
@@ -2307,6 +2326,7 @@ $("review-button").addEventListener("click", () => {
 $("metadata-open").addEventListener("click", showMetadata);
 $("settings-open").addEventListener("click", () => {
   $("dmb-url").value = dmbUrl;
+  $("viewer-url").value = viewerUrl;
   $("image-route-" + imageRoute).checked = true;
   $("settings-error").textContent = "";
   $("settings-dialog").showModal();
@@ -2315,6 +2335,10 @@ $("settings-form").addEventListener("submit", (event) => {
   event.preventDefault();
   try {
     const value = validateDmbUrl($("dmb-url").value.trim());
+    const nextViewerUrl = validateViewerUrl(
+      $("viewer-url").value,
+      location.href,
+    );
     const nextImageRoute = $("image-route-direct").checked ? "direct" : "proxy";
     const serviceChanged = value !== dmbUrl;
     const imageRouteChanged = nextImageRoute !== imageRoute;
@@ -2325,8 +2349,10 @@ $("settings-form").addEventListener("submit", (event) => {
     )
       return;
     localStorage.setItem("comicmanager.dmbUrl", value);
+    localStorage.setItem("comicmanager.viewerUrl", nextViewerUrl);
     localStorage.setItem("comicmanager.imageRoute", nextImageRoute);
     dmbUrl = value;
+    viewerUrl = nextViewerUrl;
     imageRoute = nextImageRoute;
     $("settings-dialog").close();
     if (serviceChanged) {
@@ -2341,12 +2367,15 @@ $("settings-form").addEventListener("submit", (event) => {
       pending.refreshIds.clear();
       for (const item of state.items) item.dirty = false;
       void route();
-    } else if (imageRouteChanged) {
-      if (state.view === "browse") void browserPage.refreshImages();
-      if (state.view === "reader") reader.refreshImage();
-      announce(
-        `图片线路已切换为${imageRoute === "direct" ? "8880 直连" : "代理"}。`,
-      );
+    } else {
+      if (state.view === "comic-detail") detailPage.refreshViewer();
+      if (imageRouteChanged) {
+        if (state.view === "browse") void browserPage.refreshImages();
+        if (state.view === "comic-detail") void detailPage.refreshImages();
+        announce(
+          `图片线路已切换为${imageRoute === "direct" ? "8880 直连" : "代理"}。`,
+        );
+      }
     }
   } catch (error) {
     $("settings-error").textContent = error.message;
@@ -2424,15 +2453,15 @@ const browserPage = createLibraryPage({
   announce,
   refreshRoute: route,
 });
-const reader = createComicReader({
+const detailPage = createComicDetail({
   el,
   button,
   empty,
   errorBox,
   getDmbUrl: () => dmbUrl,
   getImageRoute: () => imageRoute,
+  getViewerUrl: () => viewerUrl,
   setService,
-  announce,
 });
 const downloadPage = createDownloadPage({
   el,
