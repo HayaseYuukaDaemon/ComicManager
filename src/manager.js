@@ -35,7 +35,7 @@ import {
   readEntryCompletion,
   filterPending,
 } from "./pending-comics.js?v=queue-status-1";
-import { createLibraryPage } from "./library-page.js?v=comic-detail-1";
+import { createLibraryPage } from "./library-page.js?v=progressive-tags-1";
 import { createComicDetail } from "./comic-detail.js?v=comic-detail-1";
 import {
   DEFAULT_VIEWER_URL,

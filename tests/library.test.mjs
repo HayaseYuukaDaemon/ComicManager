@@ -246,6 +246,72 @@ test("失效或失败的来源映射保留状态，不捏造通用标签", async
   });
 });
 
+test("标签逐条返回，慢标签不阻塞已完成结果，共用来源身份只查询和通知一次", async (t) => {
+  const tags = ["slow", "fast", "broken", "missing"].map((origin_name) => ({
+    site: "hitomi", group: "tags", origin_name,
+  }));
+  const calls = [];
+  let releaseSlow;
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    calls.push({ url, body: options.body && JSON.parse(options.body) });
+    if (url === "/api/tags/specific/query") {
+      const name = JSON.parse(options.body).specific_tag.origin_name;
+      if (name === "slow") return new Promise((resolve) => { releaseSlow = resolve; });
+      if (name === "broken") return response({ error: { code: "TEMPORARY_ERROR", message: "临时失败" } }, undefined, 503);
+      return response(name === "fast" ? [11] : []);
+    }
+    if (url.endsWith("/generic"))
+      return response({ tag_group: "tag", name: url.includes("/11/") ? "fast" : "slow" });
+    if (url === "/api/tags/generic/query")
+      return response([JSON.parse(options.body).name === "fast" ? 11 : 12]);
+    throw new Error(`Unexpected request: ${url}`);
+  });
+  const progress = new Map();
+  const notifications = [];
+  let finished = false;
+  const pending = resolveLibraryTags(
+    [{ comic_tags: tags }, { comic_tags: [tags[1]] }],
+    new AbortController().signal,
+    (key, result) => { notifications.push(key); progress.set(key, result); },
+  ).then((result) => { finished = true; return result; });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(finished, false);
+  assert.equal(progress.has(stableKey(tags[0])), false);
+  assert.equal(progress.get(stableKey(tags[1])).id, 11);
+  assert.equal(progress.get(stableKey(tags[2])).error.code, "TEMPORARY_ERROR");
+  assert.equal(progress.get(stableKey(tags[3])).missing, true);
+  assert.equal(calls.filter(({ body }) => body?.specific_tag?.origin_name === "fast").length, 1);
+  assert.equal(notifications.filter((key) => key === stableKey(tags[1])).length, 1);
+  releaseSlow(response([12]));
+  const result = await pending;
+  assert.equal(result.get(stableKey(tags[0])).id, 12);
+  assert.equal(progress.size, 4);
+});
+
+test("离开漫画库取消后不通知迟到标签，也不继续启动队列中的请求", async (t) => {
+  const tags = Array.from({ length: 12 }, (_, index) => ({
+    site: "hitomi", group: "tags", origin_name: String(index),
+  }));
+  const requests = [];
+  const progress = [];
+  t.mock.method(globalThis, "fetch", (url, options) => new Promise((resolve) => {
+    requests.push({ signal: options.signal, resolve });
+  }));
+  const controller = new AbortController();
+  const pending = resolveLibraryTags([{ comic_tags: tags }], controller.signal, (...result) => progress.push(result));
+  assert.equal(requests.length, 6);
+  controller.abort();
+  const rejected = assert.rejects(pending, { name: "AbortError" });
+  for (const request of requests) {
+    assert.equal(request.signal.aborted, true);
+    request.resolve(response([]));
+  }
+  await rejected;
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(progress.length, 0);
+  assert.equal(requests.length, 6);
+});
+
 test("阅读按实际页面 index 排序去重，不假设从零连续；删除来源不可读", () => {
   const pages = [
     { index: 7 },

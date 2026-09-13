@@ -164,6 +164,8 @@ API 分为两个资源域：
 - 漫画保留完整原始字段。浏览器对当前页的来源标签去重，分别查询精确身份、GenericTag
   关系及 ID，按通用标签去重展示；不要求后端提供 View 或预先拼装关联。
 - DMB 元数据和图片单独读取；某个来源或标签读取失败不会阻止其余漫画展示。
+- 封面和标签并发加载；每个来源标签解析完成就更新使用它的漫画卡片，不等待整页标签完成。
+  其余标签继续显示读取状态，失败项可重试；重试期间保留已经显示的标签。
 - `title`、`author`、`tags`、匹配方式、`page`、`size` 保存于 hash 查询参数中，
   刷新及浏览器前进/后退均会恢复；详情和整理链接携带返回查询，返回时重新读取漫画库。
 - 从漫画库进入整理时识别已有记录，在复核页明确提示更新，用户确认后才覆盖。
@@ -181,15 +183,37 @@ API 分为两个资源域：
 - 「阅览」在当前标签页直接打开配置地址，查询参数 `id` 使用 Comic ID（即 DMB ID），
   不使用来源站点的 document ID。已有 `id` 会替换，其他查询参数和 fragment 保留。
 - 原 `#/read/{id}` 链接兼容转到详情，保留返回漫画库的查询条件。CM 内嵌阅读、翻页和整部缓存逻辑已移除。
-- 自带阅览器沿用 `templates/dmb-viewer.html` 和 `src/dmb-viewer.js`，独立负责翻页、图片加载及其连接配置；
+- 自带阅览器沿用 `templates/dmb-viewer.html` 和 `src/dmb-viewer.js`，独立负责 DMB 文档与图片地址读取；
   CM 的连接设置只决定跳转地址与 CM 自身的来源读取、封面线路。
-- 自带阅览器保留 Viewer.js 的放大、旋转功能，`viewer-image-cache.js` 逐张下载整部图片，
+- `templates/hitomi-viewer.html` 和 `src/hitomi-viewer.js` 保留 Hitomi 独立入口，支持 `?id=<Hitomi ID>`、
+  `?hitomi_id=<Hitomi ID>` 及原有路径 ID。直接读取 Hitomi 的 `gg.js`、画廊信息，图片沿用已有的
+  `document-worker.hayaseyuuka.date`，不调用 CM / DMB。这里的 ID 是 Hitomi 画廊 ID，并非 CM 跳转使用的 DMB ID。
+- 两个阅览器通过 `viewer.js` 共用翻页、重试与 Viewer.js 放大、旋转功能，`viewer-image-cache.js` 逐张下载整部图片，
   从当前页读到末尾后补齐前面的页面；跳到未缓存页时优先加载目标，随后继续后台队列。
   已下载图片以 Blob 和对象 URL 保留到本次阅读结束，回翻与放大直接复用；只解码当前显示图片。
 - 页码右侧显示已缓存页数、容量、预加载状态、失败页数和进度条，工具栏保持单行。单页失败或 30 秒超时继续后续页，
   失败页可单独重试；队列结束后也可点击「重试失败页」补齐，不重新下载成功项。
 - 退出或刷新时取消文档、签发、图片与解码请求，销毁 Viewer.js 并释放全部对象 URL。
   浏览器后退恢复阅览器时从原页重新建立本次缓存；签发 URL 与图片不写入本地存储。
+
+### 纯静态部署
+
+两个阅览器均无需运行 CM 后端、安装 Node.js 或打包。上传所需 HTML 到站点根目录，并保留下列文件路径：
+
+```text
+/dmb-viewer.html                # 需要 DMB 阅览器时上传
+/hitomi-viewer.html             # 需要 Hitomi 阅览器时上传
+/src/dmb-viewer.js              # DMB 来源
+/src/hitomi-viewer.js           # Hitomi 来源
+/src/viewer.js                  # 共用阅读交互
+/src/viewer-image-cache.js      # 共用 Blob 缓存
+/src/viewer.css                 # 共用样式
+```
+
+仅部署一个阅览器时，另一个的 HTML 和来源 JS 可以不上传。Viewer.js 仍从 CDN 加载，Hitomi 的 `gg.js`
+仍从来源站点加载。若将文件平铺或放入子目录，调整 HTML 内的 `/src/...` 引用；JS 之间使用相对路径。
+JS 对象应以 JavaScript MIME 类型返回。来源接口及图片存储 / Worker 的跨域 GET 应允许静态站点的 Origin，
+因为缓存通过 `fetch` 读取 Blob。Hitomi 的图片 referer 仍通过既有 Worker 的 `refererURL` 参数传递。
 
 ## 领域词汇
 

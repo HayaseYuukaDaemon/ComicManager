@@ -113,21 +113,21 @@ input[type="number"] {
 }
 input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
-/* 独立 DMB 阅览器；不改变共用此样式的 Hitomi 阅览器。 */
-.dmb-viewer [hidden] { display: none !important; }
-.dmb-viewer .viewport { min-height: 0; }
-.dmb-viewer img#displayedImage.is-ready { opacity: 1; }
-.dmb-viewer img#displayedImage.is-loading {
+/* DMB 与 Hitomi 独立阅览器共用缓存状态和紧凑工具栏。 */
+.standalone-viewer [hidden] { display: none !important; }
+.standalone-viewer .viewport { min-height: 0; }
+.standalone-viewer img#displayedImage.is-ready { opacity: 1; }
+.standalone-viewer img#displayedImage.is-loading {
     opacity: 0.3;
     pointer-events: none;
 }
-.dmb-viewer #loadingState {
+.standalone-viewer #loadingState {
     width: min(90%, 460px);
     z-index: 1;
 }
-.dmb-viewer #loadingState.has-error { color: #ff8c8c; }
-.dmb-viewer #retryPage { margin-top: 16px; }
-.dmb-viewer .toolbar {
+.standalone-viewer #loadingState.has-error { color: #ff8c8c; }
+.standalone-viewer #retryPage { margin-top: 16px; }
+.standalone-viewer .toolbar {
     height: calc(60px + env(safe-area-inset-bottom));
     box-sizing: border-box;
     flex-shrink: 0;
@@ -136,27 +136,27 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
     gap: 16px;
     padding: 4px 15px calc(4px + env(safe-area-inset-bottom));
 }
-.dmb-viewer .cache-status {
+.standalone-viewer .cache-status {
     min-width: 0;
     width: min(100%, 520px);
     font-size: 12px;
     font-variant-numeric: tabular-nums;
     color: #aaa;
 }
-.dmb-viewer .cache-status-line {
+.standalone-viewer .cache-status-line {
     display: grid;
     grid-template-columns: max-content minmax(0, 1fr) auto;
     align-items: center;
     gap: 2px 12px;
 }
-.dmb-viewer #cacheSummary { color: var(--text-color); }
-.dmb-viewer #cacheActivity {
+.standalone-viewer #cacheSummary { color: var(--text-color); }
+.standalone-viewer #cacheActivity {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.dmb-viewer #retryCache { padding: 2px 8px; font-size: 12px; }
-.dmb-viewer #cacheProgress {
+.standalone-viewer #retryCache { padding: 2px 8px; font-size: 12px; }
+.standalone-viewer #cacheProgress {
     display: block;
     width: 100%;
     height: 3px;
@@ -168,17 +168,17 @@ input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-app
     background: #333;
     accent-color: var(--accent-color);
 }
-.dmb-viewer #cacheProgress::-webkit-progress-bar { background: #333; }
-.dmb-viewer #cacheProgress::-webkit-progress-value { background: var(--accent-color); }
-.dmb-viewer #cacheProgress::-moz-progress-bar { background: var(--accent-color); }
+.standalone-viewer #cacheProgress::-webkit-progress-bar { background: #333; }
+.standalone-viewer #cacheProgress::-webkit-progress-value { background: var(--accent-color); }
+.standalone-viewer #cacheProgress::-moz-progress-bar { background: var(--accent-color); }
 
 @media (max-width: 600px) {
-    .dmb-viewer .toolbar { gap: 8px; padding-left: 10px; padding-right: 10px; }
-    .dmb-viewer .toolbar > div > button { min-width: 44px; padding: 8px 10px; }
-    .dmb-viewer .cache-status { font-size: 11px; }
-    .dmb-viewer .cache-status-line { grid-template-columns: minmax(0, 1fr) auto; gap: 2px 4px; }
-    .dmb-viewer #cacheSummary { grid-column: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .dmb-viewer #cacheActivity { grid-column: 1; grid-row: 2; font-size: 10px; }
-    .dmb-viewer #retryCache { grid-column: 2; grid-row: 1 / 3; min-width: 0; padding: 2px 4px; font-size: 10px; }
-    .dmb-viewer #cacheProgress { margin-top: 4px; }
+    .standalone-viewer .toolbar { gap: 8px; padding-left: 10px; padding-right: 10px; }
+    .standalone-viewer .toolbar > div > button { min-width: 44px; padding: 8px 10px; }
+    .standalone-viewer .cache-status { font-size: 11px; }
+    .standalone-viewer .cache-status-line { grid-template-columns: minmax(0, 1fr) auto; gap: 2px 4px; }
+    .standalone-viewer #cacheSummary { grid-column: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .standalone-viewer #cacheActivity { grid-column: 1; grid-row: 2; font-size: 10px; }
+    .standalone-viewer #retryCache { grid-column: 2; grid-row: 1 / 3; min-width: 0; padding: 2px 4px; font-size: 10px; }
+    .standalone-viewer #cacheProgress { margin-top: 4px; }
 }

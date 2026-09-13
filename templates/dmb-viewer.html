@@ -5,9 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/viewerjs/1.11.6/viewer.min.css">
-    <link rel="stylesheet" href="/src/viewer.css?v=cache-inline-1">
+    <link rel="stylesheet" href="/src/viewer.css?v=shared-viewer-1">
 </head>
-<body class="dmb-viewer">
+<body class="dmb-viewer standalone-viewer">
 
     <div class="viewport">
         <div id="loadingState" role="status">
@@ -45,6 +45,10 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/viewerjs/1.11.6/viewer.min.js"></script>
-    <script type="module" src="/src/dmb-viewer.js?v=full-cache-1"></script>
+    <script type="module">
+        import { startViewer } from "/src/viewer.js?v=shared-viewer-1";
+        import { loadDmbDocument } from "/src/dmb-viewer.js?v=shared-viewer-1";
+        startViewer({ loadDocument: loadDmbDocument });
+    </script>
 </body>
 </html>

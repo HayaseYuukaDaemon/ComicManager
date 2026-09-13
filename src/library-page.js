@@ -8,7 +8,7 @@ import {
   searchLibraryTags,
   documentPages,
   pageImageUrl,
-} from "./comic-library.js?v=id-desc-1";
+} from "./comic-library.js?v=progressive-tags-1";
 import { comicDetailLink } from "./comic-links.js?v=comic-detail-1";
 
 export function createLibraryPage({
@@ -411,7 +411,11 @@ export function createLibraryPage({
         ]),
       ],
     );
-    return { node, cover, source, tagBox };
+    return {
+      node, cover, source, tagBox,
+      tagResults: new Map(),
+      pendingTags: new Set(),
+    };
   }
   async function loadCover(comic, elements, requestSignal) {
     let sourceReady = false;
@@ -497,59 +501,87 @@ export function createLibraryPage({
       await loadCover(comic, elements, requestSignal);
     });
   }
-  async function loadTags(comics, cards, requestSignal) {
-    const mappings = await resolveLibraryTags(comics, requestSignal);
-    if (requestSignal.aborted) return;
-    for (const comic of comics) {
-      const values = comic.comic_tags.map((tag) =>
-        mappings.get(stableKey(tag)),
+  function renderTags(comic, elements, cards, requestSignal) {
+    const values = comic.comic_tags.map((tag) =>
+      elements.tagResults.get(stableKey(tag)),
+    );
+    const resolved = [
+      ...new Map(
+        values.filter((value) => value?.id).map((value) => [value.id, value]),
+      ).values(),
+    ];
+    const chips = resolved.map(({ id, tag }) =>
+      el(
+        "a",
+        {
+          class: "comic-tag",
+          title: GROUP_NAMES[tag.tag_group] || tag.tag_group,
+          href: libraryHash({
+            ...filters,
+            page: 1,
+            generic_tag_ids: [...new Set([...filters.generic_tag_ids, id])],
+          }),
+        },
+        tag.name,
+      ),
+    );
+    const box = elements.tagBox;
+    const expanded = box.querySelector(".comic-more-tags")?.open;
+    const pending = elements.pendingTags.size > 0;
+    box.setAttribute("aria-busy", String(pending));
+    box.replaceChildren(...chips.slice(0, 8));
+    if (chips.length > 8)
+      box.append(
+        el("details", { class: "comic-more-tags", open: expanded }, [
+          el("summary", {}, `另 ${chips.length - 8} 个标签`),
+          el("div", {}, chips.slice(8)),
+        ]),
       );
-      const resolved = [
-        ...new Map(
-          values.filter((value) => value?.id).map((value) => [value.id, value]),
-        ).values(),
-      ];
-      const chips = resolved.map(({ id, tag }) =>
-        el(
-          "a",
-          {
-            class: "comic-tag",
-            title: GROUP_NAMES[tag.tag_group] || tag.tag_group,
-            href: libraryHash({
-              ...filters,
-              page: 1,
-              generic_tag_ids: [...new Set([...filters.generic_tag_ids, id])],
-            }),
-          },
-          tag.name,
+    if (values.some((value) => value?.error))
+      box.append(
+        button(
+          "部分标签未能读取 · 重试",
+          () => void loadTags([comic], cards, requestSignal),
+          "btn btn-sm btn-quiet",
+          { disabled: pending },
         ),
       );
-      const box = cards.get(comic.id).tagBox;
-      box.replaceChildren(...chips.slice(0, 8));
-      if (chips.length > 8)
-        box.append(
-          el("details", { class: "comic-more-tags" }, [
-            el("summary", {}, `另 ${chips.length - 8} 个标签`),
-            el("div", {}, chips.slice(8)),
-          ]),
-        );
-      if (values.some((value) => value?.error))
-        box.append(
-          button(
-            "部分标签未能读取 · 重试",
-            () => void loadTags([comic], cards, requestSignal),
-            "btn btn-sm btn-quiet",
-          ),
-        );
-      if (values.some((value) => value?.missing))
-        box.append(
-          el(
-            "a",
-            { href: "#/pending", class: "comic-tag-note" },
-            "有来源标签待整理 · 查看队列",
-          ),
-        );
-      if (!values.length) box.append(el("small", {}, "暂无标签"));
+    if (values.some((value) => value?.missing))
+      box.append(
+        el(
+          "a",
+          { href: "#/pending", class: "comic-tag-note" },
+          "有来源标签待整理 · 查看队列",
+        ),
+      );
+    if (pending) box.append(el("small", {}, "正在读取标签…"));
+    else if (!values.length) box.append(el("small", {}, "暂无标签"));
+  }
+
+  async function loadTags(comics, cards, requestSignal) {
+    if (requestSignal.aborted) return;
+    const owners = new Map();
+    for (const comic of comics) {
+      const elements = cards.get(comic.id);
+      elements.pendingTags = new Set(comic.comic_tags.map(stableKey));
+      for (const key of elements.pendingTags) {
+        if (!owners.has(key)) owners.set(key, []);
+        owners.get(key).push(comic);
+      }
+      renderTags(comic, elements, cards, requestSignal);
+    }
+    try {
+      await resolveLibraryTags(comics, requestSignal, (key, result) => {
+        if (requestSignal.aborted) return;
+        for (const comic of owners.get(key)) {
+          const elements = cards.get(comic.id);
+          elements.tagResults.set(key, result);
+          elements.pendingTags.delete(key);
+          renderTags(comic, elements, cards, requestSignal);
+        }
+      });
+    } catch (error) {
+      if (!requestSignal.aborted) throw error;
     }
   }
 

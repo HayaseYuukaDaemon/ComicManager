@@ -111,18 +111,18 @@ export async function queryComics(filters, signal) {
 }
 
 // 仅在当前页面请求内去重；刷新时重新读取关系，避免保留已变化的标签映射。
-export async function resolveLibraryTags(comics, signal) {
+export async function resolveLibraryTags(comics, signal, onResolved) {
   const specifics = new Map(
     comics
       .flatMap((comic) => comic.comic_tags)
       .map((tag) => [stableKey(tag), tag]),
   );
   const genericIds = new Map();
-  const entries = await mapLimit([...specifics], 6, async ([key, tag]) => {
+  async function resolve(tag) {
     signal?.throwIfAborted();
     try {
       const mapping = await exactMapping(tag, signal);
-      if (!mapping) return [key, { missing: true, specific: tag }];
+      if (!mapping) return { missing: true, specific: tag };
       const genericKey = JSON.stringify([
         mapping.generic.tag_group,
         mapping.generic.name,
@@ -135,11 +135,18 @@ export async function resolveLibraryTags(comics, signal) {
           "通用标签已变化，请重试读取。",
           "MISSING_GENERIC_TAG",
         );
-      return [key, { id, tag: mapping.generic }];
+      return { id, tag: mapping.generic };
     } catch (error) {
       if (signal?.aborted) throw error;
-      return [key, { error, specific: tag }];
+      return { error, specific: tag };
     }
+  }
+  const entries = await mapLimit([...specifics], 6, async ([key, tag]) => {
+    const result = await resolve(tag);
+    signal?.throwIfAborted();
+    // 每条结果立即通知页面；最终 Map 仍可供详情页等调用者一次性读取。
+    onResolved?.(key, result);
+    return [key, result];
   });
   return new Map(entries);
 }
